@@ -1,0 +1,20 @@
+// Re-export all AST node types from types.ts — single source of truth.
+export type {
+  ASTNode,
+  CompNode,
+  StrNode,
+  NumNode,
+  BoolNode,
+  NullNode,
+  ArrNode,
+  ObjNode,
+  RefNode,
+  StateRefNode,
+  BinOpNode,
+  UnaryOpNode,
+  TernaryNode,
+  MemberNode,
+  IndexNode,
+  AssignNode,
+  NamedArgNode,
+} from "../types";

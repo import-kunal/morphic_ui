@@ -39,7 +39,7 @@ yarn dev
 # or
 pnpm dev
 # or
-bun dev
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
@@ -61,6 +61,7 @@ You can fully customize the look and feel of MorphicUI:
 For more detailed information, check out the documentation in the `docs/` directory:
 
 - [Master Blueprint](docs/MORPHIC_UI_BLUEPRINT.md) - Full architectural overview and DSL design.
+- [Architecture and Complete Lifecycle](docs/architecture-lifecycle.md) - Code-verified flowcharts and sequence diagrams for prompts, streaming, rendering, interaction, failures, observability, and Docker delivery.
 - [Customization Guide](docs/customization.md) - How to style, theme, and configure components.
 - [How the Renderer Works](docs/how-the-renderer-works.md) - Deep dive into the rendering pipeline.
 

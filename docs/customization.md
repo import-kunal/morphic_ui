@@ -283,9 +283,10 @@ const SYSTEM_PROMPT =
   '\n\nLimit @Each loops to a maximum of 10 items unless the user explicitly requests more.';
 ```
 
-**3. Restricting props** — the Zod schema is enforced at parse time. If the AI
-tries to pass `columns=7` to Grid but the schema only allows 1–4, the prop is
-rejected and the default is used instead.
+**3. Restricting and documenting props** — the Zod schema generates the component signature and
+provides ordered parameter metadata to the resolver. The current renderer does not run a complete
+Zod `safeParse` against every resolved component at runtime, so component implementations must still
+handle unexpected values defensively. Full runtime schema validation remains future hardening work.
 
 **4. Removing components** — if you don't want the AI to use SankeyChart,
 just don't register it in `server.ts`. It won't appear in the prompt.

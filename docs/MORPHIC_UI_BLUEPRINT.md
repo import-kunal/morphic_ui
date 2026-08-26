@@ -1,5 +1,9 @@
 # MorphicUI — Master Blueprint
 
+> For the **current, code-verified lifecycle** and Mermaid diagrams covering prompt construction,
+> request streaming, parsing, rendering, interaction, failures, observability, and Docker delivery, see
+> [Architecture and Complete Lifecycle](architecture-lifecycle.md).
+
 > A next-generation Generative UI engine that converts streaming LLM output into live, interactive React interfaces powered by shadcn/ui components.
 
 ---
@@ -125,7 +129,7 @@ The parser handles it, `TextContent` renders as styled text. The MorphicRenderer
 
 ## 3. How It Works — End to End
 
-### Step 1: Define Components (Once, at Build Time)
+### Step 1: Define Components in Source
 
 ```tsx
 // packages/elements/layout/stack.tsx

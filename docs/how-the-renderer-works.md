@@ -1,5 +1,9 @@
 # MorphicUI — How the Renderer Works
 
+> For the **current end-to-end lifecycle**, including the typed SSE transport, direct Gemini call,
+> prompt attachment phase, observability timeline, failure paths, and Docker distribution flow, see
+> [Architecture and Complete Lifecycle](architecture-lifecycle.md).
+
 A complete technical walkthrough for the team. Start here if you want to understand
 what happens between "user hits send" and "UI appears on screen."
 
@@ -36,10 +40,11 @@ Everything below expands each of those steps.
 
 **File:** `app/api/chat/ui/route.ts`
 
-When the user sends a message, the browser POSTs to `/api/chat/ui`.
-The route does two things before calling Gemini:
+When the UI route module loads, it generates and retains the system prompt for that module instance.
+When the user later sends a message, the browser POSTs the same-mode conversation history to
+`/api/chat/ui`; the shared stream handler attaches the retained prompt before calling Gemini.
 
-**1. Generates the system prompt.**
+**1. Generates the system prompt at module initialization.**
 It calls `engine.generatePrompt()` which reads every registered component
 (name, description, props schema) and produces a structured prompt that tells
 Gemini exactly what MorphicLang looks like and what components are available.
@@ -65,10 +70,10 @@ You are a UI generation engine. Respond ONLY with a MorphicLang program.
   Write children and data statements after.
 ```
 
-**2. Streams the response back.**
-Gemini's output is piped chunk-by-chunk to the browser as plain text.
-If Gemini errors mid-stream, the route appends `\n\nError: <message>`
-so the client can split the clean content from the error message.
+**2. Streams typed events back for each request.**
+Gemini's output is carried through Server-Sent Events: `start`, zero or more `delta` events, then
+`done` with metrics or `error` with a safe error code and message. Errors are never appended to the
+generated MorphicLang source.
 
 ---
 
@@ -372,6 +377,10 @@ the LLM chooses to use the component. Write it like instructions to a junior dev
 ---
 
 ## Complete data flow diagram
+
+> This diagram focuses on parser and renderer internals. Its Gemini box is a conceptual shorthand for
+> the server route and model adapter; use the [complete lifecycle diagrams](architecture-lifecycle.md)
+> for the exact browser/server boundary and typed SSE sequence.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

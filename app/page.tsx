@@ -13,7 +13,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <ChatWindow messages={messages} mode={mode} onSuggestion={send} />
+      <ChatWindow messages={messages} onSuggestion={send} />
       <ChatInput
         onSend={send}
         isLoading={isLoading}

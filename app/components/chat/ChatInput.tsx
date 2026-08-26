@@ -68,8 +68,10 @@ export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): Rea
             {/* Mode toggle */}
             <button
               onClick={() => onModeChange(mode === "ui" ? "text" : "ui")}
+              disabled={isLoading}
+              aria-pressed={mode === "ui"}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50",
                 mode === "ui"
                   ? "bg-primary/10 text-primary border border-primary/20"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent"

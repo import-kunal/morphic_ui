@@ -8,7 +8,6 @@ import type { ChatMessage } from "@/app/hooks/useChat";
 
 interface Props {
   messages: ChatMessage[];
-  mode: "ui" | "text";
   onSuggestion?: (text: string) => void;
 }
 
@@ -19,11 +18,17 @@ const SUGGESTIONS = [
   { icon: SlidersHorizontal, label: "Interactive form" },
 ];
 
-export function ChatWindow({ messages, mode, onSuggestion }: Props): ReactNode {
+export function ChatWindow({ messages, onSuggestion }: Props): ReactNode {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const frame = requestAnimationFrame(() => {
+      const isStreaming = messages.some((message) => message.isStreaming);
+      bottomRef.current?.scrollIntoView({
+        behavior: isStreaming ? "auto" : "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages]);
 
   if (messages.length === 0) {
@@ -66,7 +71,7 @@ export function ChatWindow({ messages, mode, onSuggestion }: Props): ReactNode {
     <div className="flex-1 overflow-y-auto px-4 py-8">
       <div className="mx-auto max-w-4xl flex flex-col gap-10">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} mode={mode} />
+          <MessageBubble key={msg.id} message={msg} />
         ))}
         <div ref={bottomRef} />
       </div>

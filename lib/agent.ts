@@ -1,34 +1,57 @@
-import { createAgent } from "langchain";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  type BaseMessage,
+} from "@langchain/core/messages";
+import { ChatGoogle } from "@langchain/google/node";
 import { env } from "@/config/env";
+import type { ChatMode } from "@/lib/chat-protocol";
 
-function makeModel() {
-  return new ChatGoogleGenerativeAI({
-    model: env.GEMINI_MODEL,
-    apiKey: env.GOOGLE_API_KEY,
-    temperature: 0.7,
-    maxOutputTokens: 8192,
-    streaming: true,
+interface ChatInputMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+const model = new ChatGoogle({
+  model: env.GEMINI_MODEL,
+  apiKey: env.GOOGLE_API_KEY,
+  reasoningEffort: env.GEMINI_REASONING_EFFORT,
+  maxRetries: 2,
+  streamUsage: true,
+});
+
+export function streamChatModel({
+  systemPrompt,
+  messages,
+  signal,
+  mode,
+  requestId,
+}: {
+  systemPrompt: string;
+  messages: ChatInputMessage[];
+  signal: AbortSignal;
+  mode: ChatMode;
+  requestId: string;
+}) {
+  return model.stream(toModelMessages(systemPrompt, messages), {
+    signal,
+    runName: `morphic_${mode}_stream`,
+    tags: ["morphic-ui", mode],
+    metadata: { requestId, mode, model: env.GEMINI_MODEL },
   });
 }
 
-/** Agent for /api/chat/ui — generates MorphicLang output. */
-export function createUIAgent(systemPrompt: string) {
-  return createAgent({
-    model: makeModel(),
-    tools: [],
-    systemPrompt,
-    name: "morphic_ui_agent",
-  });
-}
-
-/** Agent for /api/chat/text — generates plain markdown output. */
-export function createTextAgent() {
-  return createAgent({
-    model: makeModel(),
-    tools: [],
-    systemPrompt:
-      "You are a helpful assistant. Respond in clear, well-formatted markdown. Be concise.",
-    name: "morphic_text_agent",
-  });
+function toModelMessages(
+  systemPrompt: string,
+  messages: ChatInputMessage[]
+): BaseMessage[] {
+  return [
+    new SystemMessage(systemPrompt),
+    ...messages.map((message) =>
+      message.role === "user"
+        ? new HumanMessage(message.content)
+        : new AIMessage(message.content)
+    ),
+  ];
 }

@@ -167,6 +167,17 @@ test("Store does not notify on no-op set", () => {
   assert(notifyCount === 1, `Expected 1 notification, got ${notifyCount}`);
 });
 
+test("Store initial values do not overwrite user interaction", () => {
+  const store = new Store();
+  store.loadInitialState({ selectedTab: "overview" });
+  store.set("llm.selectedTab", "details");
+  store.loadInitialState({ selectedTab: "overview" });
+  assert(
+    store.getSnapshot()["llm.selectedTab"] === "details",
+    "A repeated parse must preserve the user's current selection"
+  );
+});
+
 // 9. executeActions: set step updates store
 test("executeActions set step updates store", () => {
   const store = new Store();

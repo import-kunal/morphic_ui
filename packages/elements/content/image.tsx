@@ -31,6 +31,9 @@ function ImageInner({ src, alt, height }: { src: string; alt: string; height?: n
   }
 
   return (
+    // Arbitrary model-provided remote URLs cannot use next/image without a
+    // broad remote-pattern allowlist; protocol validation is enforced above.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}

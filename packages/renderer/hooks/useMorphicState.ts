@@ -29,12 +29,10 @@ export function useMorphicState({
   // Stable store instance — lives as long as the engine reference is stable.
   const store = useMemo(() => new Store(), [engine]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Stable StreamParser — recreated only when the engine changes.
+  // The parser owns its incremental buffer. Normal model output only appends, so
+  // update() consumes the new suffix instead of rescanning the full response.
   const sp = useMemo(() => engine.createStreamParser(), [engine]);
-
-  // Parse the full response text on every change.
-  // sp.set() scans for completed statements (cached) and re-parses only the pending tail.
-  const parseResult = useMemo(() => sp.set(response), [sp, response]);
+  const parseResult = useMemo(() => sp.update(response), [response, sp]);
 
   // Load $var initial values declared in the program into the store.
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { tokenize } from "./tokenizer";
-import { splitStatements } from "./splitter";
+import { continuesExpression, splitStatements } from "./splitter";
 import { parseStatement } from "./grammar";
 import { autoclose } from "./autoclose";
 import { resolveFromASTMap } from "./resolver";
@@ -31,6 +31,13 @@ export class StreamParser {
     this.cachedASTs.clear();
     this.promotePendingToCompleted();
     return this.buildResult();
+  }
+
+  /** Apply a full snapshot efficiently, appending only its unseen suffix when possible. */
+  update(fullText: string): ParseResult {
+    return fullText.startsWith(this.buffer)
+      ? this.push(fullText.slice(this.buffer.length))
+      : this.set(fullText);
   }
 
   /** Reset to empty state. */
@@ -68,11 +75,14 @@ export class StreamParser {
         if (depth > 0) depth--;
       } else if (ch === "\n" && depth === 0) {
         const text = this.buffer.slice(stmtStart, i).trim();
-        if (text.length > 0) {
+        if (text.length === 0) {
+          this.completedEnd = i + 1;
+          stmtStart = i + 1;
+        } else if (!continuesExpression(tokenize(text))) {
           this.parseAndCache(text);
+          this.completedEnd = i + 1;
+          stmtStart = i + 1;
         }
-        this.completedEnd = i + 1;
-        stmtStart = i + 1;
       }
 
       i++;

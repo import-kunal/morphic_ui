@@ -14,6 +14,8 @@ import { createElement } from "react";
 import { MorphicEngine } from "../engine/engine";
 import { MorphicRenderer } from "../renderer/MorphicRenderer";
 import { morphicLibrary } from "./library";
+import { Store } from "../engine/runtime/state";
+import { executeActions } from "../engine/runtime/actions";
 import type { ElementNode } from "../engine/types";
 
 const engine = new MorphicEngine({ library: morphicLibrary });
@@ -155,9 +157,6 @@ root = Stack(children=[$tab == "overview" ? overviewText : detailsText])
 
 // 9. Store reactivity: executeActions updates store value
 test("executeActions set step updates store, evaluate returns correct node", () => {
-  const { Store } = require("../engine/runtime/state");
-  const { executeActions } = require("../engine/runtime/actions");
-
   const store = new Store();
   store.loadInitialState({ tab: "overview" });
   assert(store.getSnapshot()["llm.tab"] === "overview", "Initial state loaded");
@@ -303,6 +302,19 @@ features = [{name: "Auth", status: "Done"}, {name: "Search", status: "Active"}, 
   assert(html.includes("Done"), "Done badge (then-branch) should render");
   assert(html.includes("Active"), "Active badge (middle branch) should render");
   assert(html.includes("Blocked"), "Blocked badge (final else) should render");
+});
+
+test("multiline chained ternary remains one streaming statement", () => {
+  const program = [
+    '$choice = "C"',
+    "root = Text(value)",
+    'value = $choice == "A" ? "A" :',
+    '        $choice == "B" ? "B" : "C"',
+  ].join("\n");
+  const result = engine.createStreamParser().set(program);
+  const node = engine.evaluate(result, { "llm.choice": "C" });
+  assert(result.errors.length === 0, `Parse errors: ${result.errors.map((error) => error.message).join(", ")}`);
+  assert(node?.props["content"] === "C", `Expected final else branch C, got ${node?.props["content"]}`);
 });
 
 // ---------------------------------------------------------------------------

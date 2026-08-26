@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { MorphicProvider } from "./MorphicProvider";
 import { RenderNode } from "./RenderNode";
@@ -16,6 +16,7 @@ interface MorphicRendererProps {
   isStreaming?: boolean;
   onError?: (errors: MorphicError[]) => void;
   onAction?: ActionCallback;
+  onFirstRenderable?: () => void;
 }
 
 export function MorphicRenderer({
@@ -24,7 +25,9 @@ export function MorphicRenderer({
   isStreaming = false,
   onError,
   onAction,
+  onFirstRenderable,
 }: MorphicRendererProps): ReactNode {
+  const reportedRenderable = useRef(false);
   const { evaluatedRoot, parseResult, store, errors } = useMorphicState({
     engine,
     response,
@@ -36,6 +39,18 @@ export function MorphicRenderer({
     resolvedNodes: parseResult.resolvedNodes,
     onAction,
   });
+
+  useEffect(() => {
+    if (
+      reportedRenderable.current ||
+      !evaluatedRoot ||
+      evaluatedRoot.typeName.startsWith("__")
+    ) {
+      return;
+    }
+    reportedRenderable.current = true;
+    onFirstRenderable?.();
+  }, [evaluatedRoot, onFirstRenderable]);
 
   // renderNode converts an unknown prop value into a ReactNode.
   // It handles ElementNode (renders via RenderNode), arrays (maps each item),

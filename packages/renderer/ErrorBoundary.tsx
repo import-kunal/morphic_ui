@@ -1,44 +1,55 @@
 "use client";
 
 import { Component } from "react";
-import type { ReactNode, ErrorInfo } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 
 interface Props {
   statementId?: string;
+  resetKey: unknown;
   children: ReactNode;
 }
 
 interface State {
-  hasError: boolean;
+  errorMessage: string | null;
 }
 
-// Class component — required by React's error boundary API.
-// Shows the last valid render on error and auto-recovers when a new node arrives.
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
-  private lastGood: ReactNode = null;
+  state: State = { errorMessage: null };
 
-  static getDerivedStateFromError(_error: unknown): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown): State {
+    return {
+      errorMessage: error instanceof Error ? error.message : "Render failed",
+    };
   }
 
-  componentDidCatch(_error: unknown, _info: ErrorInfo) {
-    // Error is silently swallowed — last good render is shown instead.
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("[morphic-render] Component render failed", {
+      statementId: this.props.statementId,
+      error,
+      componentStack: info.componentStack,
+    });
   }
 
-  componentDidUpdate(prevProps: Props) {
-    // New valid node arrived — clear the error and allow re-render.
-    if (this.state.hasError && prevProps.statementId !== this.props.statementId) {
-      this.setState({ hasError: false });
+  componentDidUpdate(previousProps: Props) {
+    if (
+      this.state.errorMessage !== null &&
+      previousProps.resetKey !== this.props.resetKey
+    ) {
+      this.setState({ errorMessage: null });
     }
   }
 
   render(): ReactNode {
-    if (this.state.hasError) {
-      return this.lastGood;
+    if (this.state.errorMessage !== null) {
+      return (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+        >
+          This component could not be rendered: {this.state.errorMessage}
+        </div>
+      );
     }
-    // Cache the current valid children before returning.
-    this.lastGood = this.props.children;
     return this.props.children;
   }
 }

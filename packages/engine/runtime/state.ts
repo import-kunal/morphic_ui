@@ -38,10 +38,17 @@ export class Store {
 
   /** Pre-populate from a ParseResult.initialState map (LLM $var declarations). */
   loadInitialState(initialState: Record<string, unknown>): void {
+    let changed = false;
     for (const [name, value] of Object.entries(initialState)) {
-      this.state[`llm.${name}`] = value;
+      const key = `llm.${name}`;
+      if (Object.prototype.hasOwnProperty.call(this.state, key)) continue;
+      this.state[key] = value;
+      changed = true;
     }
-    this.snapshot = { ...this.state };
+    if (changed) {
+      this.snapshot = { ...this.state };
+      this.subscribers.forEach((fn) => fn());
+    }
   }
 }
 

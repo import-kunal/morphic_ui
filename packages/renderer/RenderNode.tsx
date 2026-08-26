@@ -9,6 +9,16 @@ interface Props {
   node: ElementNode;
 }
 
+function ComponentInvocation({
+  renderer,
+  rendererProps,
+}: {
+  renderer: (props: ComponentRendererProps) => ReactNode;
+  rendererProps: ComponentRendererProps;
+}): ReactNode {
+  return renderer(rendererProps);
+}
+
 // Per-node renderer. Looks up the component definition from the library,
 // wraps it in an ErrorBoundary, and passes evaluated props + renderNode callback.
 export function RenderNode({ node }: Props): ReactNode {
@@ -31,13 +41,16 @@ export function RenderNode({ node }: Props): ReactNode {
   ) => ReactNode;
 
   return (
-    <ErrorBoundary statementId={node.statementId}>
-      {renderer({
-        props: node.props,
-        renderNode,
-        triggerAction,
-        statementId: node.statementId,
-      })}
+    <ErrorBoundary statementId={node.statementId} resetKey={node}>
+      <ComponentInvocation
+        renderer={renderer}
+        rendererProps={{
+          props: node.props,
+          renderNode,
+          triggerAction,
+          statementId: node.statementId,
+        }}
+      />
     </ErrorBoundary>
   );
 }

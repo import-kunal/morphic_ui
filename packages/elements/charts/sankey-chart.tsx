@@ -81,7 +81,7 @@ export const SankeyChart = defineComponent({
           )}
         >
           <Tooltip
-            formatter={(value: number, name: string) => [value, name]}
+            formatter={(value, name) => [value ?? 0, name]}
           />
         </Sankey>
       </div>

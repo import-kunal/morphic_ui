@@ -57,8 +57,8 @@ function tryEvalWithLocalScope(node: ASTNode, localScope: Record<string, unknown
         case "||": return l || r;
         case "&&": return l && r;
         case "??": return l ?? r;
-        case "==": return l == r;  // eslint-disable-line eqeqeq
-        case "!=": return l != r;  // eslint-disable-line eqeqeq
+        case "==": return l == r;
+        case "!=": return l != r;
         case ">":  return (l as number) > (r as number);
         case "<":  return (l as number) < (r as number);
         case ">=": return (l as number) >= (r as number);
@@ -287,7 +287,6 @@ function resolveComp(
 
   if (ctx.library && !name.startsWith("@")) {
     const params = ctx.library.getParams(name) ?? [];
-    const positionalParams = params.filter((_, i) => i < positional.length || true);
 
     // Map positional args by index
     for (let i = 0; i < positional.length; i++) {
@@ -329,7 +328,6 @@ function resolveComp(
       }
     }
 
-    void positionalParams; // suppress unused warning
   } else {
     // No library — pass through args as-is
     for (let i = 0; i < positional.length; i++) {

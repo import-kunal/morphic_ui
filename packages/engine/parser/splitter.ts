@@ -13,7 +13,12 @@ export function splitStatements(tokens: Token[]): Statement[] {
     if (token.type === TokenType.EOF) break;
 
     if (token.type === TokenType.Newline) {
-      if (depth === 0 && ternaryDepth === 0 && current.length > 0) {
+      if (
+        depth === 0 &&
+        ternaryDepth === 0 &&
+        current.length > 0 &&
+        !continuesExpression(current)
+      ) {
         statements.push(makeStatement(current));
         current = [];
       }
@@ -55,6 +60,40 @@ export function splitStatements(tokens: Token[]): Statement[] {
   }
 
   return statements;
+}
+
+const CONTINUATION_TOKENS = new Set<TokenType>([
+  TokenType.Comma,
+  TokenType.Colon,
+  TokenType.Equals,
+  TokenType.Dot,
+  TokenType.Question,
+  TokenType.Plus,
+  TokenType.Minus,
+  TokenType.Star,
+  TokenType.Slash,
+  TokenType.Percent,
+  TokenType.EqEq,
+  TokenType.BangEq,
+  TokenType.Gt,
+  TokenType.Lt,
+  TokenType.GtEq,
+  TokenType.LtEq,
+  TokenType.And,
+  TokenType.Or,
+  TokenType.Coalesce,
+]);
+
+/** True when a top-level newline follows an expression that cannot be complete. */
+export function continuesExpression(tokens: Token[]): boolean {
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const type = tokens[index]?.type;
+    if (type === undefined || type === TokenType.Newline || type === TokenType.EOF) {
+      continue;
+    }
+    return CONTINUATION_TOKENS.has(type);
+  }
+  return false;
 }
 
 let statementCounter = 0;

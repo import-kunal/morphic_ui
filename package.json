@@ -6,15 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:database": "bun scripts/check-database.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.9",
-    "@langchain/google": "^0.2.3",
+    "@langchain/openrouter": "^0.4.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "langchain": "^1.5.4",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "postgres": "^3.4.7",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",

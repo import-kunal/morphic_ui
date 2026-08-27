@@ -58,7 +58,7 @@ export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): Rea
             }}
             onKeyDown={handleKey}
             rows={1}
-            placeholder="Ask anything..."
+            placeholder="Ask about a fund, manager, holding, or risk metric..."
             disabled={isLoading}
             className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm text-foreground placeholder-muted-foreground/60 focus:outline-none disabled:opacity-40 leading-relaxed"
           />
@@ -102,7 +102,7 @@ export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): Rea
         </div>
 
         <p className="mt-2 text-center text-[11px] text-muted-foreground/50">
-          MorphicUI may produce errors. Review important output.
+          Research results are factual drafts for MFD review.
         </p>
       </div>
     </div>

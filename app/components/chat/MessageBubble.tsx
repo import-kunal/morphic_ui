@@ -1,10 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Copy, ThumbsUp, ThumbsDown, RefreshCw, Code2 } from "lucide-react";
 import { MorphicRenderer } from "@/packages/renderer";
-import { MorphicEngine } from "@/packages/engine";
+import { MorphicEngine, type MorphicError } from "@/packages/engine";
 import { morphicLibrary } from "@/packages/elements";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -92,8 +92,38 @@ function ActionBtn({
 
 export function MessageBubble({ message }: Props): ReactNode {
   const engine = useMemo(() => new MorphicEngine({ library: morphicLibrary }), []);
-  const [hasRenderableUi, setHasRenderableUi] = useState(false);
-  const handleFirstRenderable = useCallback(() => setHasRenderableUi(true), []);
+  const contentRevision = message.contentRevision ?? 0;
+  const [renderedRevision, setRenderedRevision] = useState<number | null>(null);
+  const [rendererErrors, setRendererErrors] = useState<MorphicError[]>([]);
+  const [renderFailed, setRenderFailed] = useState(false);
+  const hasRenderableUi = renderedRevision === contentRevision;
+  const handleFirstRenderable = useCallback(
+    () => setRenderedRevision(contentRevision),
+    [contentRevision]
+  );
+  const handleRendererErrors = useCallback(
+    (errors: MorphicError[]) => setRendererErrors(errors),
+    []
+  );
+
+  useEffect(() => {
+    setRendererErrors([]);
+    setRenderFailed(false);
+  }, [contentRevision]);
+
+  useEffect(() => {
+    if (
+      message.mode !== "ui" ||
+      message.isStreaming ||
+      !message.content ||
+      hasRenderableUi
+    ) {
+      setRenderFailed(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setRenderFailed(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [hasRenderableUi, message.content, message.isStreaming, message.mode]);
 
   if (message.role === "user") {
     return (
@@ -120,9 +150,11 @@ export function MessageBubble({ message }: Props): ReactNode {
         /* UI mode: full-width rendered component, no card wrapper */
         <div className="w-full text-foreground">
           <MorphicRenderer
+            key={contentRevision}
             engine={engine}
             response={message.content}
             isStreaming={message.isStreaming}
+            onError={handleRendererErrors}
             onFirstRenderable={handleFirstRenderable}
           />
         </div>
@@ -133,6 +165,17 @@ export function MessageBubble({ message }: Props): ReactNode {
             {message.content}
           </ReactMarkdown>
           {message.isStreaming && <ThinkingDots />}
+        </div>
+      )}
+
+      {renderFailed && (
+        <div className="flex items-start gap-2 mt-3 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>
+            The generated interface could not be rendered. Please retry or use
+            View source to inspect the response.
+            {rendererErrors[0]?.message ? ` ${rendererErrors[0].message}` : ""}
+          </span>
         </div>
       )}
 

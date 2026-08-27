@@ -6,14 +6,22 @@ import type {
   ReasoningEffort,
   ChatStreamEvent,
   ChatStreamMetrics,
+  ToolActivity,
 } from "@/lib/chat-protocol";
+
+export type ChatActivityItem =
+  | { id: string; type: "reasoning"; text: string }
+  | { id: string; type: "tool"; callId: string };
 
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   mode: ChatMode;
   content: string;
+  contentRevision?: number;
   reasoning?: string;
+  toolActivity?: ToolActivity[];
+  activityTimeline?: ChatActivityItem[];
   reasoningEffort?: ReasoningEffort;
   preparationStartedAt?: number;
   isStreaming: boolean;
@@ -64,7 +72,10 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
         role: "assistant",
         mode: requestMode,
         content: "",
+        contentRevision: 0,
         reasoning: "",
+        toolActivity: [],
+        activityTimeline: [],
         preparationStartedAt: Date.now(),
         isStreaming: true,
       };
@@ -90,6 +101,8 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
       let pendingReasoning = "";
       let animationFrame: number | null = null;
       let streamError: string | null = null;
+      let reasoningSequence = 0;
+      let startNewReasoningSegment = true;
 
       const updateAssistant = (update: Partial<ChatMessage>) => {
         setMessages((current) => {
@@ -106,6 +119,9 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
         if (!pendingText && !pendingReasoning) return;
         const text = pendingText;
         const reasoning = pendingReasoning;
+        const reasoningId = `reasoning-${reasoningSequence++}`;
+        const forceNewReasoning = startNewReasoningSegment;
+        if (reasoning) startNewReasoningSegment = false;
         pendingText = "";
         pendingReasoning = "";
         setMessages((current) => {
@@ -115,6 +131,12 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
                   ...message,
                   content: message.content + text,
                   reasoning: (message.reasoning ?? "") + reasoning,
+                  activityTimeline: appendReasoningActivity(
+                    message.activityTimeline,
+                    reasoning,
+                    reasoningId,
+                    forceNewReasoning
+                  ),
                 }
               : message
           );
@@ -137,6 +159,47 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
         }
       };
 
+      const flushPendingNow = () => {
+        if (animationFrame !== null) {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        }
+        flushPendingContent();
+      };
+
+      const resetAssistantContent = () => {
+        if (animationFrame !== null) {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        }
+        const reasoning = pendingReasoning;
+        const reasoningId = `reasoning-${reasoningSequence++}`;
+        const forceNewReasoning = startNewReasoningSegment;
+        pendingText = "";
+        pendingReasoning = "";
+        setMessages((current) => {
+          const updated = current.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: "",
+                  contentRevision: (message.contentRevision ?? 0) + 1,
+                  reasoning: (message.reasoning ?? "") + reasoning,
+                  activityTimeline: appendReasoningActivity(
+                    message.activityTimeline,
+                    reasoning,
+                    reasoningId,
+                    forceNewReasoning
+                  ),
+                }
+              : message
+          );
+          messagesRef.current = updated;
+          return updated;
+        });
+        startNewReasoningSegment = true;
+      };
+
       const handleEvent = (event: ChatStreamEvent) => {
         switch (event.type) {
           case "start":
@@ -148,13 +211,75 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
           case "reasoning_delta":
             queueReasoning(event.text);
             break;
+          case "content_reset":
+            resetAssistantContent();
+            break;
+          case "tool_started":
+            flushPendingNow();
+            startNewReasoningSegment = true;
+            setMessages((current) => {
+              const updated = current.map((message) =>
+                message.id === assistantId
+                  ? {
+                      ...message,
+                      toolActivity: [
+                        ...(message.toolActivity ?? []),
+                        {
+                          callId: event.callId,
+                          tool: event.tool,
+                          startedAt: event.startedAt,
+                          status: "running" as const,
+                        },
+                      ],
+                      activityTimeline: [
+                        ...(message.activityTimeline ?? []),
+                        {
+                          id: `tool-${event.callId}`,
+                          type: "tool" as const,
+                          callId: event.callId,
+                        },
+                      ],
+                    }
+                  : message
+              );
+              messagesRef.current = updated;
+              return updated;
+            });
+            break;
+          case "tool_completed":
+            flushPendingNow();
+            setMessages((current) => {
+              const updated = current.map((message) =>
+                message.id === assistantId
+                  ? {
+                      ...message,
+                      toolActivity: (message.toolActivity ?? []).map((activity) =>
+                        activity.callId === event.callId
+                          ? {
+                              ...activity,
+                              status: event.status,
+                              durationMs: event.durationMs,
+                              source: event.source,
+                              rowCount: event.rowCount,
+                            }
+                          : activity
+                      ),
+                    }
+                  : message
+              );
+              messagesRef.current = updated;
+              return updated;
+            });
+            break;
           case "delta":
             queueText(event.text);
             break;
           case "done":
+            flushPendingNow();
             updateAssistant({ metrics: event.metrics });
             break;
           case "error":
+            flushPendingNow();
             streamError = event.message;
             updateAssistant({ requestId: event.requestId, error: event.message });
             break;
@@ -236,4 +361,24 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
   }, []);
 
   return { messages, isLoading, send, clear };
+}
+
+function appendReasoningActivity(
+  timeline: ChatActivityItem[] | undefined,
+  text: string,
+  id: string,
+  forceNew: boolean
+): ChatActivityItem[] {
+  const current = timeline ?? [];
+  if (!text) return current;
+
+  const last = current.at(-1);
+  if (last?.type === "reasoning" && !forceNew) {
+    return [
+      ...current.slice(0, -1),
+      { ...last, text: last.text + text },
+    ];
+  }
+
+  return [...current, { id, type: "reasoning", text }];
 }

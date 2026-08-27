@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { BarChart2, Layers, TableIcon, SlidersHorizontal } from "lucide-react";
+import { Scale, ShieldCheck, PieChart, Users } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatMessage } from "@/app/hooks/useChat";
 
@@ -12,10 +12,34 @@ interface Props {
 }
 
 const SUGGESTIONS = [
-  { icon: BarChart2,         label: "Revenue dashboard" },
-  { icon: Layers,            label: "Portfolio comparison" },
-  { icon: TableIcon,         label: "Data table with filters" },
-  { icon: SlidersHorizontal, label: "Interactive form" },
+  {
+    icon: Scale,
+    label: "Compare two funds",
+    detail: "PPFAS vs HDFC Flexi Cap",
+    prompt:
+      "Compare Parag Parikh Flexi Cap Fund and HDFC Flexi Cap Fund using the latest comparable fund-level data.",
+  },
+  {
+    icon: ShieldCheck,
+    label: "Review risk metrics",
+    detail: "Use comparable plans and periods",
+    prompt:
+      "Compare the latest available risk metrics of Parag Parikh Flexi Cap Fund and HDFC Flexi Cap Fund. Keep plans and measurement periods comparable.",
+  },
+  {
+    icon: PieChart,
+    label: "Explore allocation",
+    detail: "Market-cap composition",
+    prompt:
+      "Show the latest market-cap allocation of Parag Parikh Flexi Cap Fund, including the portfolio date and any unclassified or uncovered percentage.",
+  },
+  {
+    icon: Users,
+    label: "Check fund managers",
+    detail: "Active team and tenure",
+    prompt:
+      "Who currently manages Parag Parikh Flexi Cap Fund? Show each active manager's tenure start date and educational qualification.",
+  },
 ];
 
 export function ChatWindow({ messages, onSuggestion }: Props): ReactNode {
@@ -43,23 +67,30 @@ export function ChatWindow({ messages, onSuggestion }: Props): ReactNode {
             </svg>
           </div>
           <div>
-            <p className="text-lg font-semibold text-foreground tracking-tight">What would you like to build?</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              Describe a dashboard, analysis, or form — I&apos;ll generate the UI instantly.
+            <p className="text-lg font-semibold text-foreground tracking-tight">What would you like to research?</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Ask about funds, portfolios, managers, holdings, risk, or comparisons.
             </p>
           </div>
         </div>
 
         {/* Suggestion chips */}
         <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
-          {SUGGESTIONS.map(({ icon: Icon, label }) => (
+          {SUGGESTIONS.map(({ icon: Icon, label, detail, prompt }) => (
             <button
               key={label}
-              onClick={() => onSuggestion?.(label)}
-              className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-card border border-border text-left text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-accent transition-all group"
+              onClick={() => onSuggestion?.(prompt)}
+              className="group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-all hover:border-primary/30 hover:bg-accent"
             >
-              <Icon className="h-3.5 w-3.5 shrink-0 group-hover:text-primary transition-colors" />
-              {label}
+              <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground/90">
+                  {label}
+                </span>
+                <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+                  {detail}
+                </span>
+              </span>
             </button>
           ))}
         </div>

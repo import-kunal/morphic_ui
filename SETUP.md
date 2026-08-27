@@ -14,6 +14,9 @@ renderer.
 Install the following before continuing:
 
 - [Bun](https://bun.sh/) for dependencies and application scripts.
+- Node.js 24 for the production `next build` and `next start` workers. The required major version is
+  declared in `package.json`. Bun remains the package manager and works for development, linting,
+  type-checking, and renderer tests.
 - PostgreSQL 17 with `psql` and, optionally, pgAdmin 4.
 - An [OpenRouter](https://openrouter.ai/) API key.
 - The supplied PostgreSQL SQL dump if the local database has not been restored yet.
@@ -46,12 +49,18 @@ OPENROUTER_API_KEY=replace-with-your-openrouter-api-key
 
 ## 3. Configure the model used for testing
 
-The current free-model testing profile uses MiniMax M3 as the primary model, with GLM 5.2 and
-Gemma 4 31B as fallbacks:
+The current free-model testing profile uses OpenRouter's free-model router. It selects from the
+currently available free models and filters for capabilities required by the request, including tool
+calling:
 
 ```dotenv
 OPENROUTER_MODEL=minimax/minimax-m3:free
 OPENROUTER_FALLBACK_MODELS=z-ai/glm-5.2:free,google/gemma-4-31b-it:free
+
+we can also have this if the models are getting rate limited
+
+OPENROUTER_MODEL=openrouter/free
+OPENROUTER_FALLBACK_MODELS=
 ```
 
 This is a testing profile, not a production reliability guarantee. Free OpenRouter endpoints can be
@@ -62,8 +71,8 @@ handling requirements.
 The remaining agent controls are:
 
 ```dotenv
-OPENROUTER_REASONING_EFFORT=minimal
-OPENROUTER_REASONING_MAX_TOKENS=1200
+OPENROUTER_REASONING_EFFORT=none
+OPENROUTER_REASONING_MAX_TOKENS=0
 OPENROUTER_MAX_OUTPUT_TOKENS=8192
 OPENROUTER_DATA_COLLECTION=deny
 
@@ -142,10 +151,24 @@ usage.
 
 ## 8. Build and run the production bundle locally
 
+Confirm that a real Node.js executable is available before building:
+
 ```powershell
-bun run build
-bun run start
+node --version
 ```
+
+The version must begin with `v24.`.
+
+Next.js 16.3.3 development can be launched through Bun, but its production page-data workers are
+not reliable under the Bun runtime on Windows. The package scripts therefore invoke Node explicitly.
+
+```powershell
+npm run build
+npm run start
+```
+
+Use `npm run` for these two production commands so the scripts execute with the installed Node
+runtime. Continue using Bun for dependency installation, development, and the other checks.
 
 This verifies the optimized Next.js build. It does not make free model endpoints production-ready.
 

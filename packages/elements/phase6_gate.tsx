@@ -347,6 +347,21 @@ test("dynamic invalid Table columns are rejected after state evaluation", () => 
   assert(!html.includes("[object Object]"), "Dynamic invalid columns must never reach React");
 });
 
+test("generated action builtins compile into an executable action plan", () => {
+  const program = [
+    '$tab = "Overview"',
+    'root = Button("Show holdings", action=@Actions(@Set($tab, "Holdings"), @SendMessage("Compare holdings")))',
+  ].join("\n");
+  const result = engine.parse(program);
+  const evaluated = engine.evaluate(result, { "llm.tab": "Overview" });
+  const plan = evaluated?.props["action"] as import("../engine/types").ActionPlan;
+
+  assert(result.errors.length === 0, `Parse errors: ${result.errors.map((error) => error.message).join(", ")}`);
+  assert(plan.steps.length === 2, `Expected two action steps, got ${plan.steps.length}`);
+  assert(plan.steps[0]?.type === "set", "First action should update state");
+  assert(plan.steps[1]?.type === "send_message", "Second action should send a message");
+});
+
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------

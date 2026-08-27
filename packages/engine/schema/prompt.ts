@@ -85,7 +85,21 @@ function builtinDocs(): string {
 @Each(arr, "varName", template)       → maps array to component list
 @Sum(arr, field?)                     → sum of arr (or arr[*].field)
 @Max(arr, field?)                     → max value
-@Min(arr, field?)                     → min value`;
+@Min(arr, field?)                     → min value
+
+## Actions
+
+Pass an action builtin to a component's action= prop. Actions run only after the user interacts.
+
+@Set($variable, value)                → update a declared state variable
+@Reset($variable, ...)                → clear one or more state variables
+@OpenUrl("https://example.com")       → open an http/https URL in a new tab
+@SendMessage("follow-up question")   → send a follow-up chat message
+@Actions(action1, action2, ...)       → run multiple actions in order
+
+Example:
+  $tab = "Overview"
+  details = Button("Show holdings", action=@Set($tab, "Holdings"))`;
 }
 
 function eachScopingWarning(): string {

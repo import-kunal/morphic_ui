@@ -6,17 +6,19 @@ import { defineComponent } from "@/packages/engine";
 import type { ComponentRendererProps } from "@/packages/engine/types";
 import type { ReactNode } from "react";
 
+const ALLOWED_IMAGE_HOSTS = new Set(["picsum.photos", "fastly.picsum.photos"]);
+
 function isAllowedUrl(url: unknown): url is string {
   if (typeof url !== "string" || !url) return false;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    return parsed.protocol === "https:" && ALLOWED_IMAGE_HOSTS.has(parsed.hostname);
   } catch {
     return false;
   }
 }
 
-function ImageInner({ src, alt, height }: { src: string; alt: string; height?: number }): ReactNode {
+function ImageInner({ src, alt, width, height }: { src: string; alt: string; width?: number; height?: number }): ReactNode {
   const [broken, setBroken] = useState(false);
 
   if (broken) {
@@ -37,11 +39,14 @@ function ImageInner({ src, alt, height }: { src: string; alt: string; height?: n
     <img
       src={src}
       alt={alt}
+      width={width}
+      height={height}
       loading="lazy"
       referrerPolicy="no-referrer"
       onError={() => setBroken(true)}
       className="w-full rounded-md object-cover"
       style={{
+        width:     width ? `min(${width}px, 100%)` : "100%",
         height:    height ? `min(${height}px, 280px)` : undefined,
         maxHeight: "280px",
       }}
@@ -51,7 +56,7 @@ function ImageInner({ src, alt, height }: { src: string; alt: string; height?: n
 
 export const Image = defineComponent({
   name: "Image",
-  description: "Displays an image from a URL. src must be http or https. For placeholder/example images always use https://picsum.photos/seed/{meaningful-seed}/{width}/{height} (e.g. https://picsum.photos/seed/albania/800/400) — never use Unsplash URLs as they require auth and will break.",
+  description: "Displays an allow-listed HTTPS image. Use https://picsum.photos/seed/{meaningful-seed}/{width}/{height}; other remote hosts are blocked.",
   props: z.object({
     src:    z.string(),
     alt:    z.string(),
@@ -61,10 +66,11 @@ export const Image = defineComponent({
   component: ({ props }: ComponentRendererProps): ReactNode => {
     const src    = props["src"];
     const alt    = (props["alt"] as string | null) ?? "";
+    const width  = props["width"] as number | undefined;
     const height = props["height"] as number | undefined;
 
     if (!isAllowedUrl(src)) return null;
 
-    return <ImageInner src={src} alt={alt} height={height} />;
+    return <ImageInner src={src} alt={alt} width={width} height={height} />;
   },
 });

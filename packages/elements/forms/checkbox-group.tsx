@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineComponent } from "@/packages/engine";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { ComponentRendererProps } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const CheckboxGroup = defineComponent({
   name: "CheckboxGroup",
@@ -13,7 +13,9 @@ export const CheckboxGroup = defineComponent({
     label:    z.string().optional(),
     stateKey: z.string().optional(),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function CheckboxGroupComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const groupId = useId();
+    const labelId = `${groupId}-label`;
     const optionsRaw  = props["options"]  as string[] | null;
     const selectedRaw = props["selected"] as string[] | null;
     const stateKey    = props["stateKey"] as string | undefined;
@@ -33,20 +35,23 @@ export const CheckboxGroup = defineComponent({
     }
 
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" role="group" aria-labelledby={props["label"] ? labelId : undefined}>
         {props["label"] ? (
-          <label className="text-sm font-medium">{props["label"] as string}</label>
+          <span id={labelId} className="text-sm font-medium">{props["label"] as string}</span>
         ) : null}
-        {options.map((opt) => (
+        {options.map((opt, index) => {
+          const optionId = `${groupId}-${index}`;
+          return (
           <div key={opt} className="flex items-center gap-2">
             <Checkbox
-              id={opt}
+              id={optionId}
               checked={selected.includes(opt)}
               onCheckedChange={(checked) => handleToggle(opt, checked === true)}
             />
-            <label htmlFor={opt} className="text-sm">{opt}</label>
+            <label htmlFor={optionId} className="text-sm">{opt}</label>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   },

@@ -102,7 +102,7 @@ export const morphicSchemaLibrary = createLibrary({
     },
     {
       name: "Image",
-      description: "Displays an image from a URL. src must be http or https. For placeholder/example images always use https://picsum.photos/seed/{meaningful-seed}/{width}/{height} (e.g. https://picsum.photos/seed/albania/800/400) — never use Unsplash URLs as they require auth and will break.",
+      description: "Displays an allow-listed HTTPS image. Use https://picsum.photos/seed/{meaningful-seed}/{width}/{height}; other remote hosts are blocked.",
       props: z.object({
         src:    z.string(),
         alt:    z.string(),

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineComponent } from "@/packages/engine";
 import { Slider as ShadSlider } from "@/components/ui/slider";
 import type { ComponentRendererProps } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const Slider = defineComponent({
   name: "Slider",
@@ -15,7 +15,8 @@ export const Slider = defineComponent({
     label:    z.string().optional(),
     stateKey: z.string().optional(),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function SliderComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const labelId = useId();
     const min   = props["min"]   as number | null;
     const max   = props["max"]   as number | null;
     const value = props["value"] as number | null;
@@ -36,11 +37,12 @@ export const Slider = defineComponent({
       <div className="flex flex-col gap-2">
         {props["label"] ? (
           <div className="flex justify-between text-sm">
-            <label className="font-medium">{props["label"] as string}</label>
+            <span id={labelId} className="font-medium">{props["label"] as string}</span>
             <span className="text-muted-foreground">{value}</span>
           </div>
         ) : null}
         <ShadSlider
+          aria-labelledby={props["label"] ? labelId : undefined}
           min={min}
           max={max}
           step={(props["step"] as number) ?? 1}

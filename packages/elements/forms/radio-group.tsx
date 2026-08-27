@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineComponent } from "@/packages/engine";
 import { RadioGroup as ShadRadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { ComponentRendererProps, ActionPlan } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const RadioGroup = defineComponent({
   name: "RadioGroup",
@@ -14,7 +14,9 @@ export const RadioGroup = defineComponent({
     action:   z.unknown().optional(),
     stateKey: z.string().optional(),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function RadioGroupComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const groupId = useId();
+    const labelId = `${groupId}-label`;
     if (!Array.isArray(props["options"])) return null;
     const stateKey = props["stateKey"] as string | undefined;
 
@@ -31,15 +33,18 @@ export const RadioGroup = defineComponent({
     return (
       <div className="flex flex-col gap-2">
         {props["label"] ? (
-          <label className="text-sm font-medium">{props["label"] as string}</label>
+          <span id={labelId} className="text-sm font-medium">{props["label"] as string}</span>
         ) : null}
-        <ShadRadioGroup value={(props["value"] as string | null) ?? ""} onValueChange={handleChange}>
-          {(props["options"] as string[]).map((opt) => (
+        <ShadRadioGroup aria-labelledby={props["label"] ? labelId : undefined} value={(props["value"] as string | null) ?? ""} onValueChange={handleChange}>
+          {(props["options"] as string[]).map((opt, index) => {
+            const optionId = `${groupId}-${index}`;
+            return (
             <div key={opt} className="flex items-center gap-2">
-              <RadioGroupItem value={opt} id={opt} />
-              <label htmlFor={opt} className="text-sm">{opt}</label>
+              <RadioGroupItem value={opt} id={optionId} />
+              <label htmlFor={optionId} className="text-sm">{opt}</label>
             </div>
-          ))}
+            );
+          })}
         </ShadRadioGroup>
       </div>
     );

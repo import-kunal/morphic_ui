@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ComponentRendererProps, ActionPlan } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const Select = defineComponent({
   name: "Select",
@@ -20,7 +20,8 @@ export const Select = defineComponent({
     action:   z.unknown().optional(),
     stateKey: z.string().optional(),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function SelectComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const selectId = useId();
     if (!Array.isArray(props["options"])) return null;
     const stateKey = props["stateKey"] as string | undefined;
 
@@ -37,10 +38,10 @@ export const Select = defineComponent({
     return (
       <div className="flex flex-col gap-1.5">
         {props["label"] ? (
-          <label className="text-sm font-medium">{props["label"] as string}</label>
+          <label htmlFor={selectId} className="text-sm font-medium">{props["label"] as string}</label>
         ) : null}
         <ShadSelect value={(props["value"] as string | null) ?? ""} onValueChange={handleChange}>
-          <SelectTrigger>
+          <SelectTrigger id={selectId}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

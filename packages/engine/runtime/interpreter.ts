@@ -1,4 +1,4 @@
-import type { ASTNode, BinOpNode, CompNode, ElementNode, LibrarySchema } from "../types";
+import type { ActionPlan, ASTNode, BinOpNode, CompNode, ElementNode, LibrarySchema } from "../types";
 
 export interface InterpreterContext {
   /** Current store snapshot — "llm.<name>" keys for LLM-set $variables. */
@@ -323,6 +323,40 @@ function evalBuiltin(node: CompNode, ctx: InterpreterContext): unknown {
   const name = node.name.slice(1); // strip "@"
 
   switch (name) {
+    case "Set": {
+      const target = stateTarget(node.positional[0]);
+      const valueAST = node.positional[1];
+      if (!target || !valueAST) return null;
+      return { steps: [{ type: "set", target, valueAST }] } satisfies ActionPlan;
+    }
+
+    case "Reset": {
+      const targets = node.positional
+        .map(stateTarget)
+        .filter((target): target is string => Boolean(target));
+      return { steps: [{ type: "reset", targets }] } satisfies ActionPlan;
+    }
+
+    case "OpenUrl": {
+      const url = evalAST(node.positional[0]!, ctx);
+      if (typeof url !== "string") return null;
+      return { steps: [{ type: "open_url", url }] } satisfies ActionPlan;
+    }
+
+    case "SendMessage": {
+      const message = evalAST(node.positional[0]!, ctx);
+      if (typeof message !== "string") return null;
+      return { steps: [{ type: "send_message", message }] } satisfies ActionPlan;
+    }
+
+    case "Actions": {
+      const steps = node.positional.flatMap((action) => {
+        const plan = evalAST(action, ctx) as ActionPlan | null;
+        return plan?.steps ?? [];
+      });
+      return { steps } satisfies ActionPlan;
+    }
+
     case "Count": {
       const arr = evalAST(node.positional[0]!, ctx);
       return Array.isArray(arr) ? arr.length : 0;
@@ -397,4 +431,8 @@ function evalBuiltin(node: CompNode, ctx: InterpreterContext): unknown {
     default:
       return null;
   }
+}
+
+function stateTarget(node: ASTNode | undefined): string | null {
+  return node?.k === "StateRef" ? node.name : null;
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineComponent } from "@/packages/engine";
 import { Textarea as ShadTextarea } from "@/components/ui/textarea";
 import type { ComponentRendererProps } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const Textarea = defineComponent({
   name: "Textarea",
@@ -14,7 +14,8 @@ export const Textarea = defineComponent({
     stateKey:    z.string().optional(),
     rows:        z.number().optional().default(4),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function TextareaComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const textareaId = useId();
     const stateKey = props["stateKey"] as string | undefined;
 
     function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -28,9 +29,10 @@ export const Textarea = defineComponent({
     return (
       <div className="flex flex-col gap-1.5">
         {props["label"] ? (
-          <label className="text-sm font-medium">{props["label"] as string}</label>
+          <label htmlFor={textareaId} className="text-sm font-medium">{props["label"] as string}</label>
         ) : null}
         <ShadTextarea
+          id={textareaId}
           value={(props["value"] as string | null) ?? ""}
           placeholder={(props["placeholder"] as string) ?? ""}
           rows={(props["rows"] as number) ?? 4}

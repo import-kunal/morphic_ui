@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineComponent } from "@/packages/engine";
 import { Input as ShadInput } from "@/components/ui/input";
 import type { ComponentRendererProps } from "@/packages/engine/types";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const Input = defineComponent({
   name: "Input",
@@ -13,7 +13,8 @@ export const Input = defineComponent({
     placeholder: z.string().optional(),
     stateKey:    z.string().optional(),
   }),
-  component: ({ props, triggerAction }: ComponentRendererProps): ReactNode => {
+  component: function InputComponent({ props, triggerAction }: ComponentRendererProps): ReactNode {
+    const inputId = useId();
     const stateKey = props["stateKey"] as string | undefined;
 
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -27,9 +28,10 @@ export const Input = defineComponent({
     return (
       <div className="flex flex-col gap-1.5">
         {props["label"] ? (
-          <label className="text-sm font-medium">{props["label"] as string}</label>
+          <label htmlFor={inputId} className="text-sm font-medium">{props["label"] as string}</label>
         ) : null}
         <ShadInput
+          id={inputId}
           value={(props["value"] as string | null) ?? ""}
           placeholder={(props["placeholder"] as string) ?? ""}
           onChange={handleChange}

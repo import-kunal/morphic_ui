@@ -282,11 +282,12 @@ function resolveComp(
   }
 
   // Map positional + named args → named props
-  const props: Record<string, unknown> = {};
+  let props: Record<string, unknown> = {};
   let hasDynamic = false;
 
   if (ctx.library && !name.startsWith("@")) {
     const params = ctx.library.getParams(name) ?? [];
+    const paramNames = new Set(params.map((param) => param.name));
 
     // Map positional args by index
     for (let i = 0; i < positional.length; i++) {
@@ -307,6 +308,15 @@ function resolveComp(
 
     // Map named args
     for (const [argName, argNode] of Object.entries(named)) {
+      if (!paramNames.has(argName)) {
+        errors.push({
+          code: "invalid-prop",
+          statementId,
+          message: `Unknown prop '${argName}' for '${name}'.`,
+          hint: `Allowed props: ${params.map((param) => param.name).join(", ")}.`,
+        });
+        continue;
+      }
       const resolved = resolveArgValue(argNode, symbolTable, visiting, errors, ctx, statementId, depth, localScope);
       if (isDynamic(argNode) || resolvedHasDynamic(resolved)) hasDynamic = true;
       props[argName] = resolved;
@@ -326,6 +336,25 @@ function resolveComp(
           props[param.name] = param.defaultValue;
         }
       }
+    }
+
+    // Dynamic AST values are validated after the interpreter resolves them.
+    // Static values can be checked now, before an invalid object reaches React.
+    if (!hasDynamic) {
+      const validation = ctx.library.validateProps(name, props);
+      if (!validation.success) {
+        const details = validation.issues
+          .map((issue) => `${issue.path || "props"}: ${issue.message}`)
+          .join("; ");
+        errors.push({
+          code: "invalid-prop",
+          statementId,
+          message: `Invalid props for '${name}': ${details}`,
+          hint: `Use only values allowed by the '${name}' component signature.`,
+        });
+        return makePartialNode("__Error__", statementId);
+      }
+      props = validation.data;
     }
 
   } else {
@@ -580,5 +609,6 @@ export function makeSimpleLibrary(
     getParams(name) { return defs[name]?.params; },
     hasComponent(name) { return name in defs; },
     componentNames() { return Object.keys(defs); },
+    validateProps(_name, props) { return { success: true, data: props }; },
   };
 }

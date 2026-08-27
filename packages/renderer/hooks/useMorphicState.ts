@@ -54,7 +54,7 @@ export function useMorphicState({
 
   // Report errors to the consumer after render.
   useEffect(() => {
-    if (parseResult.errors.length > 0) onError?.(parseResult.errors);
+    onError?.(parseResult.errors);
   }, [parseResult.errors, onError]);
 
   return {

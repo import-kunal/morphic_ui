@@ -8,7 +8,21 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn(
+        "relative w-full overflow-x-auto overscroll-x-contain pb-1",
+        "[scrollbar-color:transparent_transparent] [scrollbar-width:thin]",
+        "hover:[scrollbar-color:var(--border)_transparent]",
+        "[&::-webkit-scrollbar]:h-1.5",
+        "[&::-webkit-scrollbar-track]:bg-transparent",
+        "[&::-webkit-scrollbar-thumb]:rounded-full",
+        "[&::-webkit-scrollbar-thumb]:border-2",
+        "[&::-webkit-scrollbar-thumb]:border-transparent",
+        "[&::-webkit-scrollbar-thumb]:bg-transparent",
+        "[&::-webkit-scrollbar-thumb]:bg-clip-padding",
+        "hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30",
+        "[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50",
+        "[&::-webkit-scrollbar-button]:hidden"
+      )}
     >
       <table
         data-slot="table"

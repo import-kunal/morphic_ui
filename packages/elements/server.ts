@@ -160,10 +160,11 @@ export const morphicSchemaLibrary = createLibrary({
     },
     {
       name: "LineChart",
-      description: "Line chart. categories[] are X-axis labels, series[] are { name, data[] } objects.",
+      description: "Line chart for chronological trends. categories[] are X-axis labels and series[] are { name, data[] } objects. yAxisMode=auto focuses the scale around the observed range with padding; use zero only when a zero baseline is essential.",
       props: z.object({
         categories: z.array(z.string()),
         series:     z.array(z.object({ name: z.string(), data: z.array(z.number()) })),
+        yAxisMode:  z.enum(["auto", "zero"]).optional().default("auto"),
         height:     z.number().optional().default(300),
       }),
       component: stub,
@@ -250,7 +251,7 @@ export const morphicSchemaLibrary = createLibrary({
     },
     {
       name: "Table",
-      description: "A data table. columns is a string array, rows is an array of value arrays.",
+      description: "A data table. columns must be a plain quoted string array (never Text, Tag, or another component); rows is an array of value arrays with the same number of cells as columns.",
       props: z.object({
         columns: z.array(z.string()),
         rows:    z.array(z.array(z.unknown())),

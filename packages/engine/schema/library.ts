@@ -1,7 +1,11 @@
 import type { ZodTypeAny } from "zod";
 import { ZodDefault, ZodOptional } from "zod";
 import type { DefinedComponent } from "./component";
-import type { LibrarySchema, ParamDef } from "../types";
+import type {
+  LibrarySchema,
+  ParamDef,
+  PropValidationResult,
+} from "../types";
 import { generatePrompt } from "./prompt";
 
 export interface Library {
@@ -39,6 +43,31 @@ export function createLibrary(opts: {
     getParams(name)       { return paramMap.get(name); },
     hasComponent(name)    { return name in components; },
     componentNames()      { return Object.keys(components); },
+    validateProps(name, props): PropValidationResult {
+      const component = components[name];
+      if (!component) {
+        return {
+          success: false,
+          issues: [{ path: "", message: `Unknown component '${name}'.` }],
+        };
+      }
+
+      const result = component.props.safeParse(props);
+      if (result.success) {
+        return {
+          success: true,
+          data: result.data as Record<string, unknown>,
+        };
+      }
+
+      return {
+        success: false,
+        issues: result.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      };
+    },
   };
 
   return {

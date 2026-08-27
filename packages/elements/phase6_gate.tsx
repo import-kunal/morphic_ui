@@ -317,6 +317,36 @@ test("multiline chained ternary remains one streaming statement", () => {
   assert(node?.props["content"] === "C", `Expected final else branch C, got ${node?.props["content"]}`);
 });
 
+test("invalid component objects in Table columns are rejected before React", () => {
+  const program = 'root = Table([Text("Metric")], [["AUM"]])';
+  const result = engine.parse(program);
+  assert(
+    result.root?.typeName === "__Error__",
+    `Expected invalid Table to resolve as __Error__, got ${result.root?.typeName}`
+  );
+  assert(
+    result.errors.some((error) => error.code === "invalid-prop"),
+    `Expected invalid-prop error, got ${JSON.stringify(result.errors)}`
+  );
+  const html = render(program);
+  assert(!html.includes("[object Object]"), "Invalid columns must never reach React");
+});
+
+test("dynamic invalid Table columns are rejected after state evaluation", () => {
+  const program = [
+    "$invalid = true",
+    'root = Table($invalid ? [Text("Metric")] : ["Metric"], [["AUM"]])',
+  ].join("\n");
+  const result = engine.parse(program);
+  const evaluated = engine.evaluate(result, { "llm.invalid": true });
+  assert(
+    evaluated?.typeName === "__Error__",
+    `Expected evaluated invalid Table to become __Error__, got ${evaluated?.typeName}`
+  );
+  const html = render(program);
+  assert(!html.includes("[object Object]"), "Dynamic invalid columns must never reach React");
+});
+
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------

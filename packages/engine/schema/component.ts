@@ -1,5 +1,6 @@
+import { z } from "zod";
 import type { ZodObject, ZodRawShape, ZodTypeAny } from "zod";
-import type { ComponentRendererProps } from "../types";
+import type { ComponentRendererProps, ElementNode } from "../types";
 
 // WeakMap tags a Zod object schema with its component name.
 // Used by prompt.ts to look up names when building signatures.
@@ -36,6 +37,13 @@ export function defineComponent<
     props: opts.props,
     description: opts.description,
     component: opts.component,
-    ref: opts.props,
+    ref: z.custom<ElementNode>(
+      (value) =>
+        typeof value === "object" &&
+        value !== null &&
+        (value as ElementNode).type === "element" &&
+        (value as ElementNode).typeName === opts.name,
+      { message: `Expected a ${opts.name} component.` }
+    ),
   };
 }

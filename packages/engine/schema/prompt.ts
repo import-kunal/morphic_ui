@@ -30,6 +30,7 @@ export function generatePrompt(
     builtinDocs(),
     eachScopingWarning(),
     filteringRules(),
+    propTypeRules(),
     streamingOrderRules(root),
     examples(),
     selfCheckRules(),
@@ -126,6 +127,16 @@ Rules:
 - Chain filters: each step filters the previous step's result.`;
 }
 
+function propTypeRules(): string {
+  return `## CRITICAL: Component Prop Types
+
+- Follow every component signature exactly. A string prop must receive a quoted string, never a component, object, array, or reference to a component.
+- Table columns must be a plain quoted string array, for example ["Metric", "Fund A", "Fund B"]. Never put Text, Tag, or any other component in Table columns.
+- Components may appear only in component children arrays or in table cells that intentionally render a component.
+- Every Table row must contain the same number of cells as the columns array.
+- Use Markdown for long prose. Its content must be one escaped string value.`;
+}
+
 function streamingOrderRules(root: string): string {
   return `## Streaming Order (IMPORTANT)
 
@@ -205,7 +216,9 @@ function selfCheckRules(): string {
 4. Is every @Each template inline (not extracted to a named statement)?
 5. Are arg counts within each component's signature?
 6. Is every @Filter value a single value or $stateVar — never a ternary or expression?
-7. Is each optional filter guarded by a statement-level ternary, and is every state reference written as $name?`;
+7. Is each optional filter guarded by a statement-level ternary, and is every state reference written as $name?
+8. Does every prop match its declared type, especially plain-string Table columns?
+9. Does every Table row have exactly the same number of cells as its columns?`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

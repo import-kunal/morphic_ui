@@ -179,6 +179,7 @@ export interface MorphicError {
   code:
     | "unknown-component"
     | "missing-required-prop"
+    | "invalid-prop"
     | "excess-args"
     | "positional-after-named"
     | "scope-violation"
@@ -207,9 +208,22 @@ export interface ParamDef {
   defaultValue?: unknown;
 }
 
+export interface PropValidationIssue {
+  path: string;
+  message: string;
+}
+
+export type PropValidationResult =
+  | { success: true; data: Record<string, unknown> }
+  | { success: false; issues: PropValidationIssue[] };
+
 // Library schema exposed to the resolver
 export interface LibrarySchema {
   getParams(componentName: string): ParamDef[] | undefined;
   hasComponent(name: string): boolean;
   componentNames(): string[];
+  validateProps(
+    componentName: string,
+    props: Record<string, unknown>
+  ): PropValidationResult;
 }

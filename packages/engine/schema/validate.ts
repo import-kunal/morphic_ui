@@ -33,6 +33,17 @@ function enrichOne(err: MorphicError, schema: LibrarySchema): MorphicError {
       };
     }
 
+    case "invalid-prop": {
+      const comp = err.message.match(/for '([^']+)'/)?.[1];
+      if (!comp) return err;
+      const params = schema.getParams(comp) ?? [];
+      const sig = `${comp}(${params.map((p) => p.name + (p.required ? "" : "?")).join(", ")})`;
+      return {
+        ...err,
+        hint: `Invalid component value. Signature: ${sig}`,
+      };
+    }
+
     case "excess-args": {
       const match = err.message.match(/for '([^']+)'/);
       if (!match) return err;

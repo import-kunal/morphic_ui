@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import type { ComponentRendererProps } from "@/packages/engine/types";
 import type { ReactNode } from "react";
+import { focusedNumericDomain, formatAxisValue } from "./axis-domain";
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -28,24 +29,32 @@ const CHART_COLORS = [
 
 export const LineChart = defineComponent({
   name: "LineChart",
-  description: "Line chart. categories[] are X-axis labels, series[] are { name, data[] } objects.",
+  description: "Line chart for chronological trends. categories[] are X-axis labels and series[] are { name, data[] } objects. yAxisMode=auto focuses the scale around the observed range with padding; use zero only when a zero baseline is essential.",
   props: z.object({
     categories: z.array(z.string()),
     series:     z.array(z.object({ name: z.string(), data: z.array(z.number()) })),
+    yAxisMode:  z.enum(["auto", "zero"]).optional().default("auto"),
     height:     z.number().optional().default(300),
   }),
   component: ({ props }: ComponentRendererProps): ReactNode => {
     const categories = props["categories"] as string[] | null;
     const series     = props["series"]     as { name: string; data: number[] }[] | null;
+    const yAxisMode  = (props["yAxisMode"] as "auto" | "zero") ?? "auto";
     const height     = (props["height"]    as number) ?? 300;
 
     if (!Array.isArray(categories) || !Array.isArray(series)) return null;
 
     const validSeries = series.filter((s) => typeof s?.name === "string");
+    const yDomain = focusedNumericDomain(validSeries, yAxisMode === "zero");
 
     const data = categories.map((cat, i) => {
       const row: Record<string, string | number> = { category: cat };
-      for (const s of validSeries) row[s.name] = Array.isArray(s.data) ? (s.data[i] ?? 0) : 0;
+      for (const s of validSeries) {
+        const value = Array.isArray(s.data) ? s.data[i] : undefined;
+        if (typeof value === "number" && Number.isFinite(value)) {
+          row[s.name] = value;
+        }
+      }
       return row;
     });
 
@@ -61,7 +70,13 @@ export const LineChart = defineComponent({
         <ReLineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="category" tickLine={false} axisLine={false} padding={{ left: 10, right: 20 }} />
-          <YAxis tickLine={false} axisLine={false} width={45} />
+          <YAxis
+            domain={yDomain}
+            tickFormatter={formatAxisValue}
+            tickLine={false}
+            axisLine={false}
+            width={58}
+          />
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} />
           {validSeries.map((s, i) => (

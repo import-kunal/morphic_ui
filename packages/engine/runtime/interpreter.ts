@@ -114,14 +114,41 @@ export function evalAST(node: ASTNode | undefined, ctx: InterpreterContext): unk
 
 // Recursively evaluates all dynamic props in an ElementNode tree.
 export function evaluateTree(node: ElementNode, ctx: InterpreterContext): ElementNode {
-  if (!node.hasDynamicProps) return node;
+  if (!node.hasDynamicProps) return validateElement(node, ctx);
 
   const props: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node.props)) {
     props[key] = evaluateValue(value, ctx);
   }
 
-  return { ...node, props, hasDynamicProps: false };
+  return validateElement({ ...node, props, hasDynamicProps: false }, ctx);
+}
+
+function validateElement(
+  node: ElementNode,
+  ctx: InterpreterContext
+): ElementNode {
+  if (
+    !ctx.library ||
+    node.typeName.startsWith("__") ||
+    node.typeName.startsWith("@")
+  ) {
+    return node;
+  }
+
+  const validation = ctx.library.validateProps(node.typeName, node.props);
+  if (validation.success) {
+    return { ...node, props: validation.data };
+  }
+
+  return {
+    type: "element",
+    typeName: "__Error__",
+    props: {},
+    partial: false,
+    hasDynamicProps: false,
+    statementId: node.statementId,
+  };
 }
 
 // Evaluates a single prop value — handles ASTNodes, ElementNodes, and arrays.
@@ -282,14 +309,14 @@ function evalComponent(node: CompNode, ctx: InterpreterContext): ElementNode {
     }
   }
 
-  return {
+  return validateElement({
     type: "element",
     typeName: node.name,
     props,
     partial: false,
     hasDynamicProps: false,
     statementId: node.name,
-  };
+  }, ctx);
 }
 
 function evalBuiltin(node: CompNode, ctx: InterpreterContext): unknown {

@@ -5,6 +5,7 @@ export type IqraSource = "postgres";
 export interface ToolActivity {
   callId: string;
   tool: string;
+  title?: string;
   startedAt: string;
   status: "running" | "finished" | "error";
   durationMs?: number;
@@ -67,12 +68,14 @@ export type ChatStreamEvent =
       type: "tool_started";
       tool: string;
       callId: string;
+      title: string;
       startedAt: string;
     }
   | {
       type: "tool_completed";
       tool: string;
       callId: string;
+      title: string;
       durationMs: number;
       status: "finished" | "error";
       source?: IqraSource;

@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useRef, type ReactNode, type KeyboardEvent } from "react";
-import { ArrowUp, Sparkles, Type } from "lucide-react";
+import { ArrowUp, Sparkles, Square, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
   onSend: (content: string) => void;
   isLoading: boolean;
+  onStop: () => void;
   mode: "ui" | "text";
   onModeChange: (mode: "ui" | "text") => void;
 }
 
-export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): ReactNode {
+export function ChatInput({ onSend, isLoading, onStop, mode, onModeChange }: Props): ReactNode {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -58,6 +59,7 @@ export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): Rea
             }}
             onKeyDown={handleKey}
             rows={1}
+            aria-label="Ask about a fund, manager, holding, or risk metric"
             placeholder="Ask about a fund, manager, holding, or risk metric..."
             disabled={isLoading}
             className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm text-foreground placeholder-muted-foreground/60 focus:outline-none disabled:opacity-40 leading-relaxed"
@@ -85,19 +87,31 @@ export function ChatInput({ onSend, isLoading, mode, onModeChange }: Props): Rea
             </button>
 
             {/* Send button */}
-            <button
-              onClick={submit}
-              disabled={!canSend}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-all",
-                canSend
-                  ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
-                  : "bg-muted text-muted-foreground/50 cursor-not-allowed"
-              )}
-              aria-label="Send"
-            >
-              <ArrowUp className="h-3.5 w-3.5" />
-            </button>
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={onStop}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Stop generating"
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSend}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  canSend
+                    ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
+                    : "bg-muted text-muted-foreground/50 cursor-not-allowed"
+                )}
+                aria-label="Send"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

@@ -4,6 +4,8 @@ import { morphicSchemaLibrary } from "@/packages/elements/server";
 import { handleChatStream } from "@/lib/chat-stream";
 import { RESEARCH_AGENT_PROMPT } from "@/lib/research/prompt";
 
+export const runtime = "nodejs";
+
 // Engine is created once per module (server restart = recreate).
 const engine = new MorphicEngine({ library: morphicSchemaLibrary });
 const SYSTEM_PROMPT =

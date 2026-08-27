@@ -33,6 +33,8 @@ const BodySchema = z
     }
   });
 
+const MAX_REQUEST_BODY_BYTES = 192_000;
+
 type ChatInput = z.infer<typeof BodySchema>;
 
 interface ChatStreamOptions {
@@ -73,6 +75,7 @@ interface MutableMetrics {
 }
 
 let activeRequests = 0;
+let activeBodyParses = 0;
 
 export async function handleChatStream(
   request: NextRequest,
@@ -83,19 +86,32 @@ export async function handleChatStream(
   const requestStartedMs = performance.now();
   const requestStartedAt = toIstTimestamp();
 
-  let json: unknown;
+  if (activeBodyParses >= env.CHAT_MAX_CONCURRENT_REQUESTS) {
+    return Response.json(
+      { error: "The service is busy. Please retry shortly.", requestId },
+      { status: 429, headers: { "Retry-After": "2" } }
+    );
+  }
+
+  activeBodyParses++;
+  let bodyResult: Awaited<ReturnType<typeof readJsonBody>>;
   try {
-    json = await request.json();
-  } catch {
+    bodyResult = await readJsonBody(request, MAX_REQUEST_BODY_BYTES);
+  } finally {
+    activeBodyParses = Math.max(0, activeBodyParses - 1);
+  }
+  if (!bodyResult.ok) {
     logChat("warn", "request.rejected", context, {
-      reason: "invalid_json",
+      reason: bodyResult.reason,
       totalMs: roundMs(performance.now() - requestStartedMs),
     });
     return Response.json(
-      { error: "Request body must be valid JSON", requestId },
-      { status: 400 }
+      { error: bodyResult.error, requestId },
+      { status: bodyResult.status }
     );
   }
+
+  const json = bodyResult.value;
 
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) {
@@ -327,12 +343,14 @@ async function pumpModelStream({
         logChat("info", "tool.started", context, {
           tool: event.tool,
           callId: event.callId,
+          title: event.title,
           elapsedMs: roundMs(now - modelStartedMs),
         });
         enqueueEvent(controller, encoder, {
           type: "tool_started",
           tool: event.tool,
           callId: event.callId,
+          title: event.title,
           startedAt: toIstTimestamp(),
         });
         continue;
@@ -349,6 +367,7 @@ async function pumpModelStream({
           {
             tool: event.tool,
             callId: event.callId,
+            title: event.title,
             durationMs: roundMs(event.durationMs),
             status: event.status,
             source: event.summary?.source,
@@ -362,6 +381,7 @@ async function pumpModelStream({
           type: "tool_completed",
           tool: event.tool,
           callId: event.callId,
+          title: event.title,
           durationMs: roundMs(event.durationMs),
           status:
             event.status === "error" || event.summary?.error
@@ -621,6 +641,84 @@ function countInputChars(input: ChatInput) {
     (sum, message) => sum + message.content.length,
     0
   );
+}
+
+async function readJsonBody(
+  request: NextRequest,
+  maxBytes: number
+): Promise<
+  | { ok: true; value: unknown }
+  | { ok: false; status: number; error: string; reason: string }
+> {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.startsWith("application/json")) {
+    return {
+      ok: false,
+      status: 415,
+      error: "Content-Type must be application/json",
+      reason: "unsupported_content_type",
+    };
+  }
+
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    return {
+      ok: false,
+      status: 403,
+      error: "Cross-site requests are not allowed",
+      reason: "cross_site_request",
+    };
+  }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    return {
+      ok: false,
+      status: 413,
+      error: "Request body is too large",
+      reason: "body_too_large",
+    };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Request body must be valid JSON",
+      reason: "missing_body",
+    };
+  }
+
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel();
+        return {
+          ok: false,
+          status: 413,
+          error: "Request body is too large",
+          reason: "body_too_large",
+        };
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      error: "Request body must be valid JSON",
+      reason: "invalid_json",
+    };
+  }
 }
 
 function isAbortError(error: unknown) {

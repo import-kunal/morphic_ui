@@ -13,6 +13,7 @@ interface ReasoningPanelProps {
 }
 
 type ToolActivity = NonNullable<ChatMessage["toolActivity"]>[number];
+const EMPTY_TOOLS: ToolActivity[] = [];
 
 interface ReasoningSection {
   id: string;
@@ -42,7 +43,7 @@ export function ReasoningPanel({
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const isPreparing = message.isStreaming && !hasRenderableContent;
   const isExpanded = hasRenderableContent ? isManuallyOpen : true;
-  const tools = message.toolActivity ?? [];
+  const tools = message.toolActivity ?? EMPTY_TOOLS;
   const timeline = useMemo(
     () => buildTimeline(message.activityTimeline, tools, message.reasoning),
     [message.activityTimeline, message.reasoning, tools]
@@ -50,7 +51,7 @@ export function ReasoningPanel({
 
   useEffect(() => {
     if (!isPreparing) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 100);
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, [isPreparing]);
 
@@ -294,6 +295,8 @@ function buildLegacyTimeline(
 }
 
 function toolActionLabel(activity: ToolActivity) {
+  if (activity.title) return activity.title;
+
   const running = activity.status === "running";
   const failed = activity.status === "error";
 

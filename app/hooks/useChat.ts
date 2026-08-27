@@ -227,6 +227,7 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
                         {
                           callId: event.callId,
                           tool: event.tool,
+                          title: event.title,
                           startedAt: event.startedAt,
                           status: "running" as const,
                         },
@@ -257,6 +258,7 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
                         activity.callId === event.callId
                           ? {
                               ...activity,
+                              title: event.title,
                               status: event.status,
                               durationMs: event.durationMs,
                               source: event.source,
@@ -360,7 +362,11 @@ export function useChat(route: ChatRoute = "/api/chat/ui") {
     setIsLoading(false);
   }, []);
 
-  return { messages, isLoading, send, clear };
+  const stop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
+  return { messages, isLoading, send, stop, clear };
 }
 
 function appendReasoningActivity(

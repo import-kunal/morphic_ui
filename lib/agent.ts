@@ -9,6 +9,11 @@ import { createAgent } from "langchain";
 import { env } from "@/config/env";
 import type { ChatMode } from "@/lib/chat-protocol";
 import { researchTools } from "@/lib/research/tools";
+import {
+  ToolActivityDescriber,
+  type ToolActivityAttempt,
+  type ToolEntityReference,
+} from "@/lib/tool-activity";
 
 interface ChatInputMessage {
   role: "user" | "assistant";
@@ -28,11 +33,18 @@ export type ModelStreamEvent =
   | { type: "model"; model: string }
   | { type: "usage"; usage: UsageValues }
   | { type: "finish"; reason: string | null }
-  | { type: "tool_started"; tool: string; callId: string; startedMs: number }
+  | {
+      type: "tool_started";
+      tool: string;
+      callId: string;
+      title: string;
+      startedMs: number;
+    }
   | {
       type: "tool_completed";
       tool: string;
       callId: string;
+      title: string;
       durationMs: number;
       status: "finished" | "error";
       summary?: ToolResultSummary;
@@ -44,11 +56,15 @@ export interface ToolResultSummary {
   matchCount?: number;
   analysis?: string;
   error?: string;
+  entities?: ToolEntityReference[];
 }
 
 const model = new ChatOpenRouter({
   model: env.OPENROUTER_MODEL,
-  models: env.OPENROUTER_FALLBACK_MODELS,
+  models:
+    env.OPENROUTER_FALLBACK_MODELS.length > 0
+      ? env.OPENROUTER_FALLBACK_MODELS
+      : undefined,
   route: "fallback",
   apiKey: env.OPENROUTER_API_KEY,
   maxTokens: env.OPENROUTER_MAX_OUTPUT_TOKENS,
@@ -59,12 +75,12 @@ const model = new ChatOpenRouter({
     require_parameters: true,
     data_collection: env.OPENROUTER_DATA_COLLECTION,
   },
-  modelKwargs: {
-    reasoning:
-      env.OPENROUTER_REASONING_MAX_TOKENS > 0
-        ? { max_tokens: env.OPENROUTER_REASONING_MAX_TOKENS }
-        : { effort: env.OPENROUTER_REASONING_EFFORT },
-  },
+  modelKwargs:
+    env.OPENROUTER_REASONING_MAX_TOKENS > 0
+      ? { reasoning: { max_tokens: env.OPENROUTER_REASONING_MAX_TOKENS } }
+      : env.OPENROUTER_REASONING_EFFORT !== "none"
+        ? { reasoning: { effort: env.OPENROUTER_REASONING_EFFORT } }
+        : {},
 });
 
 export async function* streamChatModel({
@@ -152,10 +168,11 @@ async function* streamResearchAgent({
     }
   );
   const queue = new AsyncEventQueue<ModelStreamEvent>();
+  const toolActivityDescriber = new ToolActivityDescriber();
 
   void Promise.all([
     consumeAgentMessages(run.messages, queue),
-    consumeToolCalls(run.toolCalls, queue),
+    consumeToolCalls(run.toolCalls, queue, toolActivityDescriber),
     run.output,
   ]).then(
     () => queue.close(),
@@ -212,24 +229,26 @@ async function consumeToolCalls(
   calls: AsyncIterable<{
     name: string;
     callId: string;
+    input: unknown;
     output: Promise<unknown>;
     status: Promise<"running" | "finished" | "error">;
     error: Promise<string | undefined>;
   }>,
-  queue: AsyncEventQueue<ModelStreamEvent>
+  queue: AsyncEventQueue<ModelStreamEvent>,
+  describer: ToolActivityDescriber
 ) {
   const pending: Promise<void>[] = [];
   for await (const call of calls) {
     const startedMs = performance.now();
+    const attempt = describer.start(call.name, call.input);
     queue.push({
       type: "tool_started",
       tool: call.name,
       callId: call.callId,
+      title: attempt.title,
       startedMs,
     });
-    pending.push(
-      completeToolCall(call, startedMs, queue)
-    );
+    pending.push(completeToolCall(call, attempt, startedMs, queue, describer));
   }
   await Promise.all(pending);
 }
@@ -238,24 +257,30 @@ async function completeToolCall(
   call: {
     name: string;
     callId: string;
+    input: unknown;
     output: Promise<unknown>;
     status: Promise<"running" | "finished" | "error">;
     error: Promise<string | undefined>;
   },
+  attempt: ToolActivityAttempt,
   startedMs: number,
-  queue: AsyncEventQueue<ModelStreamEvent>
+  queue: AsyncEventQueue<ModelStreamEvent>,
+  describer: ToolActivityDescriber
 ) {
   const status = await call.status;
   const error = await call.error;
   let output: unknown;
   if (status === "finished") output = await call.output;
+  const summary = summarizeToolResult(output, error);
+  const normalizedStatus = status === "finished" ? "finished" : "error";
   queue.push({
     type: "tool_completed",
     tool: call.name,
     callId: call.callId,
+    title: describer.complete(call.name, attempt, normalizedStatus, summary),
     durationMs: performance.now() - startedMs,
-    status: status === "finished" ? "finished" : "error",
-    summary: summarizeToolResult(output, error),
+    status: normalizedStatus,
+    summary,
   });
 }
 
@@ -289,10 +314,55 @@ function summarizeToolResult(
       analysis:
         typeof data?.analysis === "string" ? data.analysis : undefined,
       error: parsed.ok === false ? parsed.error : undefined,
+      entities: readEntityReferences(data?.matches),
     };
   } catch {
     return undefined;
   }
+}
+
+function readEntityReferences(value: unknown): ToolEntityReference[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entities = value.flatMap((candidate) => {
+    const row = isRecord(candidate) ? candidate : undefined;
+    const entityType = typeof row?.entityType === "string" ? row.entityType : "";
+    const id = readEntityId(row, entityType);
+    const name = readEntityName(row, entityType);
+    return entityType && id && name ? [{ entityType, id, name }] : [];
+  });
+  return entities.length ? entities : undefined;
+}
+
+function readEntityId(row: Record<string, unknown> | undefined, entityType: string) {
+  const keys = entityType === "fund"
+    ? ["fund_id"]
+    : entityType === "scheme"
+      ? ["scheme_id"]
+      : entityType === "manager"
+        ? ["fund_manager_id"]
+        : entityType === "amc"
+          ? ["mf_id"]
+          : entityType === "benchmark"
+            ? ["index_id"]
+            : ["company_isin", "company_name"];
+  const value = keys.map((key) => row?.[key]).find((candidate) => candidate != null);
+  return value == null ? "" : String(value);
+}
+
+function readEntityName(row: Record<string, unknown> | undefined, entityType: string) {
+  const keys = entityType === "fund"
+    ? ["fund_name"]
+    : entityType === "scheme"
+      ? ["scheme_name"]
+      : entityType === "benchmark"
+        ? ["index_name"]
+        : entityType === "security"
+          ? ["company_name"]
+          : ["name"];
+  const value = keys
+    .map((key) => row?.[key])
+    .find((candidate) => typeof candidate === "string");
+  return typeof value === "string" ? value : "";
 }
 
 function readToolOutputText(output: unknown) {

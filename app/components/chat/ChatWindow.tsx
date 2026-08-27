@@ -44,16 +44,25 @@ const SUGGESTIONS = [
 
 export function ChatWindow({ messages, onSuggestion }: Props): ReactNode {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMessage = messages.at(-1);
+  const lastTool = lastMessage?.toolActivity?.at(-1);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const isStreaming = messages.some((message) => message.isStreaming);
       bottomRef.current?.scrollIntoView({
-        behavior: isStreaming ? "auto" : "smooth",
+        behavior: lastMessage?.isStreaming ? "auto" : "smooth",
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [messages]);
+  }, [
+    lastMessage?.content.length,
+    lastMessage?.contentRevision,
+    lastMessage?.error,
+    lastMessage?.isStreaming,
+    lastMessage?.reasoning?.length,
+    lastMessage?.activityTimeline?.length,
+    lastTool?.status,
+  ]);
 
   if (messages.length === 0) {
     return (
@@ -102,7 +111,7 @@ export function ChatWindow({ messages, onSuggestion }: Props): ReactNode {
     <div className="flex-1 overflow-y-auto px-4 py-8">
       <div className="mx-auto max-w-4xl flex flex-col gap-10">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble key={msg.id} message={msg} onSendMessage={onSuggestion} />
         ))}
         <div ref={bottomRef} />
       </div>

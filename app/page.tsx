@@ -7,7 +7,7 @@ import { useChat } from "@/app/hooks/useChat";
 
 export default function ChatPage() {
   const [mode, setMode] = useState<"ui" | "text">("ui");
-  const { messages, isLoading, send } = useChat(
+  const { messages, isLoading, send, stop } = useChat(
     mode === "ui" ? "/api/chat/ui" : "/api/chat/text"
   );
 
@@ -17,6 +17,7 @@ export default function ChatPage() {
       <ChatInput
         onSend={send}
         isLoading={isLoading}
+        onStop={stop}
         mode={mode}
         onModeChange={setMode}
       />

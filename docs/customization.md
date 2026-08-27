@@ -10,7 +10,7 @@ Two questions answered here:
 
 ```
 User types prompt
-  → Gemini generates MorphicLang DSL text (streaming)
+  → OpenRouter routes a model that generates MorphicLang DSL text (streaming)
   → Engine parses DSL → component tree
   → Renderer maps tree → React components (shadcn/ui)
   → Browser renders it
@@ -234,7 +234,7 @@ actually renders anything server-side.
 
 ### The system prompt
 
-`packages/engine/schema/prompt.ts` generates the system prompt that goes to Gemini.
+`packages/engine/schema/prompt.ts` generates the system prompt sent through OpenRouter to the configured model.
 It reads every component's `name`, `description`, and `props` schema and produces
 a structured prompt like:
 

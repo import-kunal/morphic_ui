@@ -44,6 +44,27 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+Copy `.env.example` to `.env.local` and configure the read-only PostgreSQL connection. See
+[Configure the PostgreSQL database](docs/iqra-data-sources.md) for restore, pgAdmin, permissions, and
+verification steps.
+
+MorphicUI sends model requests through OpenRouter using LangChain's first-class
+`@langchain/openrouter` adapter. At minimum, configure:
+
+```dotenv
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=google/gemini-3.5-flash
+OPENROUTER_FALLBACK_MODELS=google/gemini-3.5-flash-lite
+OPENROUTER_REASONING_EFFORT=low
+OPENROUTER_DATA_COLLECTION=deny
+```
+
+The OpenRouter model name is provider-qualified, so changing models does not require code changes.
+The configured route requires tool/reasoning parameter support, rejects data-retaining endpoints, and
+automatically falls back to Gemini 3.5 Flash Lite when the primary model is unavailable. Ox Alpha was
+removed from service on August 26, 2026 and therefore cannot be used as an active model. No
+application-level output-token cap is set.
+
 ## Customization
 
 You can fully customize the look and feel of MorphicUI:
@@ -62,6 +83,7 @@ For more detailed information, check out the documentation in the `docs/` direct
 
 - [Master Blueprint](docs/MORPHIC_UI_BLUEPRINT.md) - Full architectural overview and DSL design.
 - [Architecture and Complete Lifecycle](docs/architecture-lifecycle.md) - Code-verified flowcharts and sequence diagrams for prompts, streaming, rendering, interaction, failures, observability, and Docker delivery.
+- [PostgreSQL Database](docs/iqra-data-sources.md) - Restore, pgAdmin, read-only access, safety boundaries, verification, and recovery.
 - [Customization Guide](docs/customization.md) - How to style, theme, and configure components.
 - [How the Renderer Works](docs/how-the-renderer-works.md) - Deep dive into the rendering pipeline.
 

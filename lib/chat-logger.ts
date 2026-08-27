@@ -49,8 +49,10 @@ function formatPrettyLog(
   switch (event) {
     case "request.accepted":
       return block(prefix, "▶ Request accepted", [
+        row("Provider", textValue(details, "provider")),
         row("Model", textValue(details, "model")),
-        row("Thinking", textValue(details, "reasoningEffort").toUpperCase()),
+        optionalRow("Fallback", textValue(details, "fallbackModels") || null),
+        row("Thinking", reasoningLimit(details)),
         row(
           "Conversation",
           `${integerValue(details, "messages")} message(s) · ${formatCount(numberValue(details, "inputChars"))} chars`
@@ -61,7 +63,7 @@ function formatPrettyLog(
         ),
         row(
           "Limits",
-          `${formatDuration(numberValue(details, "timeoutMs"))} timeout · ${integerValue(details, "activeRequests")}/${integerValue(details, "concurrencyLimit")} active`
+          `${formatDuration(numberValue(details, "timeoutMs"))} timeout · ${formatCount(numberValue(details, "maxOutputTokens"))} output tokens · ${formatCount(numberValue(details, "recursionLimit"))} agent steps · ${integerValue(details, "activeRequests")}/${integerValue(details, "concurrencyLimit")} active`
         ),
       ]);
 
@@ -76,13 +78,37 @@ function formatPrettyLog(
       ]);
 
     case "model.request.started":
-      return `${prefix} ◷ Gemini request started (route setup ${formatDuration(numberValue(details, "elapsedMs"))})`;
+      return `${prefix} ◷ OpenRouter request started (route setup ${formatDuration(numberValue(details, "elapsedMs"))})`;
+
+    case "model.routed":
+      return `${prefix} ↳ Served by ${textValue(details, "model")}`;
 
     case "model.first_text":
       return `${prefix} ⚡ First output received after ${formatDuration(numberValue(details, "timeToFirstTextMs"))}`;
 
     case "model.first_reasoning":
       return `${prefix} ◇ Reasoning summary started after ${formatDuration(numberValue(details, "timeToFirstReasoningMs"))}`;
+
+    case "model.output.reset":
+      return `${prefix} ↺ Discarded ${formatCount(numberValue(details, "discardedChars"))} chars from an intermediate tool-planning turn`;
+
+    case "tool.started":
+      return `${prefix} ⇢ ${toolLabel(textValue(details, "tool"))} started after ${formatDuration(numberValue(details, "elapsedMs"))}`;
+
+    case "tool.completed": {
+      const failed = textValue(details, "status") === "error" || Boolean(textValue(details, "error"));
+      const source = textValue(details, "source");
+      const count = numberValue(details, "rowCount") ?? numberValue(details, "matchCount");
+      const result = [
+        source,
+        count === null ? "" : `${formatCount(count)} row(s)`,
+      ].filter(Boolean).join(" · ");
+      const summary = `${prefix} ${failed ? "⚠" : "✓"} ${toolLabel(textValue(details, "tool"))} ${failed ? "failed" : "finished"} in ${formatDuration(numberValue(details, "durationMs"))}${result ? ` · ${result}` : ""}`;
+      const reason = textValue(details, "error");
+      return failed && reason
+        ? `${summary}\n${row("Reason", reason)}`
+        : summary;
+    }
 
     case "model.stream.progress": {
       const textChunks = numberValue(details, "textChunks");
@@ -109,6 +135,12 @@ function formatPrettyLog(
           "Thinking",
           `${textValue(details, "reasoningEffort").toUpperCase()} · ${formatCount(numberValue(details, "reasoningChars"))} summary chars · ${formatCount(numberValue(details, "reasoningChunks"))} chunks`
         ),
+        numberValue(details, "toolCalls")
+          ? row(
+              "Data tools",
+              `${formatCount(numberValue(details, "toolCalls"))} call(s) · ${formatDuration(numberValue(details, "totalToolMs"))} combined · ${formatCount(numberValue(details, "toolFailures"))} failed`
+            )
+          : null,
         row(
           "Output",
           `${formatCount(numberValue(details, "outputChars"))} chars · ${formatCount(numberValue(details, "textChunks"))} text chunks · ${formatRate(numberValue(details, "charsPerSecond"))}`
@@ -141,6 +173,14 @@ function formatPrettyLog(
     default:
       return `${prefix} ${humanize(event)}`;
   }
+}
+
+function reasoningLimit(details: Record<string, unknown>) {
+  const maxTokens = numberValue(details, "reasoningMaxTokens");
+  if (maxTokens && maxTokens > 0) {
+    return `${formatCount(maxTokens)} token budget`;
+  }
+  return `${textValue(details, "reasoningEffort").toUpperCase()} effort`;
 }
 
 function block(prefix: string, title: string, rows: Array<string | null>) {
@@ -219,4 +259,17 @@ function errorMessage(value: unknown) {
   const message =
     typeof error["message"] === "string" ? error["message"] : "Unknown error";
   return `${name}: ${message}`;
+}
+
+function toolLabel(tool: string) {
+  switch (tool) {
+    case "search_iqra_entities":
+      return "Entity search";
+    case "query_iqra_data":
+      return "Data query";
+    case "analyze_iqra_data":
+      return "Portfolio analysis";
+    default:
+      return humanize(tool || "tool");
+  }
 }

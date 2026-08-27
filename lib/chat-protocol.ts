@@ -1,8 +1,20 @@
 export type ChatMode = "ui" | "text";
-export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high";
+export type IqraSource = "postgres";
+
+export interface ToolActivity {
+  callId: string;
+  tool: string;
+  startedAt: string;
+  status: "running" | "finished" | "error";
+  durationMs?: number;
+  source?: IqraSource;
+  rowCount?: number;
+}
 
 export interface ChatStreamMetrics {
   requestId: string;
+  provider: "openrouter";
   model: string;
   mode: ChatMode;
   reasoningEffort: ReasoningEffort;
@@ -28,6 +40,9 @@ export interface ChatStreamMetrics {
   reasoningChunks: number;
   outputChars: number;
   reasoningChars: number;
+  toolCalls: number;
+  toolFailures: number;
+  totalToolMs: number;
   maxChunkGapMs: number;
   charsPerSecond: number | null;
   inputTokens: number | null;
@@ -40,12 +55,29 @@ export type ChatStreamEvent =
   | {
       type: "start";
       requestId: string;
+      provider: "openrouter";
       model: string;
       mode: ChatMode;
       reasoningEffort: ReasoningEffort;
       requestStartedAt: string;
     }
   | { type: "reasoning_delta"; text: string }
+  | { type: "content_reset" }
+  | {
+      type: "tool_started";
+      tool: string;
+      callId: string;
+      startedAt: string;
+    }
+  | {
+      type: "tool_completed";
+      tool: string;
+      callId: string;
+      durationMs: number;
+      status: "finished" | "error";
+      source?: IqraSource;
+      rowCount?: number;
+    }
   | { type: "delta"; text: string }
   | { type: "done"; metrics: ChatStreamMetrics }
   | {

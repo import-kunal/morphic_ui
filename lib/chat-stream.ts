@@ -43,6 +43,7 @@ interface ChatStreamOptions {
 type RequestContext = ChatLogContext;
 
 interface MutableMetrics {
+  model: string;
   requestStartedAt: string;
   requestStartedMs: number;
   modelStartedAt: string;
@@ -60,6 +61,9 @@ interface MutableMetrics {
   reasoningChunks: number;
   outputChars: number;
   reasoningChars: number;
+  toolCalls: number;
+  toolFailures: number;
+  totalToolMs: number;
   lastChunkMs: number | null;
   maxChunkGapMs: number;
   inputTokens: number | null;
@@ -124,8 +128,13 @@ export async function handleChatStream(
   activeRequests++;
   const inputChars = countInputChars(parsed.data);
   logChat("info", "request.accepted", context, {
-    model: env.GEMINI_MODEL,
-    reasoningEffort: env.GEMINI_REASONING_EFFORT,
+    provider: "OpenRouter",
+    model: env.OPENROUTER_MODEL,
+    fallbackModels: env.OPENROUTER_FALLBACK_MODELS.join(", "),
+    reasoningEffort: env.OPENROUTER_REASONING_EFFORT,
+    reasoningMaxTokens: env.OPENROUTER_REASONING_MAX_TOKENS,
+    maxOutputTokens: env.OPENROUTER_MAX_OUTPUT_TOKENS,
+    recursionLimit: env.RESEARCH_AGENT_RECURSION_LIMIT,
     messages: parsed.data.messages.length,
     inputChars,
     systemPromptChars: options.systemPrompt.length,
@@ -173,9 +182,10 @@ export async function handleChatStream(
       enqueueEvent(controller, encoder, {
         type: "start",
         requestId,
-        model: env.GEMINI_MODEL,
+        provider: "openrouter",
+        model: env.OPENROUTER_MODEL,
         mode: options.mode,
-        reasoningEffort: env.GEMINI_REASONING_EFFORT,
+        reasoningEffort: env.OPENROUTER_REASONING_EFFORT,
         requestStartedAt,
       });
 
@@ -256,6 +266,7 @@ async function pumpModelStream({
   const modelStartedMs = performance.now();
   const modelStartedAt = toIstTimestamp();
   const metrics: MutableMetrics = {
+    model: env.OPENROUTER_MODEL,
     requestStartedAt,
     requestStartedMs,
     modelStartedAt,
@@ -273,6 +284,9 @@ async function pumpModelStream({
     reasoningChunks: 0,
     outputChars: 0,
     reasoningChars: 0,
+    toolCalls: 0,
+    toolFailures: 0,
+    totalToolMs: 0,
     lastChunkMs: null,
     maxChunkGapMs: 0,
     inputTokens: null,
@@ -299,8 +313,91 @@ async function pumpModelStream({
 
     metrics.streamStartedMs = performance.now();
     metrics.streamStartedAt = toIstTimestamp();
-    for await (const chunk of modelStream) {
+    for await (const event of modelStream) {
       const now = performance.now();
+      if (event.type === "model") {
+        if (event.model !== metrics.model) {
+          metrics.model = event.model;
+          logChat("info", "model.routed", context, { model: event.model });
+        }
+        continue;
+      }
+      if (event.type === "tool_started") {
+        metrics.toolCalls++;
+        logChat("info", "tool.started", context, {
+          tool: event.tool,
+          callId: event.callId,
+          elapsedMs: roundMs(now - modelStartedMs),
+        });
+        enqueueEvent(controller, encoder, {
+          type: "tool_started",
+          tool: event.tool,
+          callId: event.callId,
+          startedAt: toIstTimestamp(),
+        });
+        continue;
+      }
+      if (event.type === "tool_completed") {
+        metrics.totalToolMs += event.durationMs;
+        if (event.status === "error" || event.summary?.error) {
+          metrics.toolFailures++;
+        }
+        logChat(
+          event.status === "error" || event.summary?.error ? "warn" : "info",
+          "tool.completed",
+          context,
+          {
+            tool: event.tool,
+            callId: event.callId,
+            durationMs: roundMs(event.durationMs),
+            status: event.status,
+            source: event.summary?.source,
+            rowCount: event.summary?.rowCount,
+            matchCount: event.summary?.matchCount,
+            analysis: event.summary?.analysis,
+            error: event.summary?.error,
+          }
+        );
+        enqueueEvent(controller, encoder, {
+          type: "tool_completed",
+          tool: event.tool,
+          callId: event.callId,
+          durationMs: roundMs(event.durationMs),
+          status:
+            event.status === "error" || event.summary?.error
+              ? "error"
+              : "finished",
+          source: event.summary?.source,
+          rowCount: event.summary?.rowCount ?? event.summary?.matchCount,
+        });
+        continue;
+      }
+      if (event.type === "usage") {
+        updateUsage(metrics, event.usage);
+        continue;
+      }
+      if (event.type === "finish") {
+        metrics.finishReason = event.reason ?? metrics.finishReason;
+        continue;
+      }
+      if (event.type === "text_reset") {
+        const discardedChars = metrics.outputChars;
+        if (discardedChars > 0) {
+          logChat("info", "model.output.reset", context, {
+            discardedChars,
+            elapsedMs: roundMs(now - modelStartedMs),
+          });
+        }
+        metrics.firstTextAt = null;
+        metrics.firstTextMs = null;
+        metrics.textChunks = 0;
+        metrics.outputChars = 0;
+        metrics.lastChunkMs = null;
+        metrics.maxChunkGapMs = 0;
+        enqueueEvent(controller, encoder, { type: "content_reset" });
+        continue;
+      }
+
       const chunkGapMs =
         metrics.lastChunkMs === null ? null : now - metrics.lastChunkMs;
       metrics.chunks++;
@@ -318,13 +415,7 @@ async function pumpModelStream({
       }
       metrics.lastChunkMs = now;
 
-      updateUsage(metrics, chunk.usage_metadata);
-      metrics.finishReason =
-        readString(chunk.response_metadata, "finishReason") ??
-        readString(chunk.response_metadata, "finish_reason") ??
-        metrics.finishReason;
-
-      const reasoning = readReasoningSummary(chunk.contentBlocks);
+      const reasoning = event.type === "reasoning" ? event.text : "";
       if (reasoning) {
         if (metrics.firstReasoningMs === null) {
           metrics.firstReasoningMs = now;
@@ -343,7 +434,7 @@ async function pumpModelStream({
         });
       }
 
-      const text = readVisibleText(chunk.contentBlocks, chunk.text);
+      const text = event.type === "text" ? event.text : "";
       if (text) {
         if (metrics.firstTextMs === null) {
           metrics.firstTextMs = now;
@@ -429,9 +520,10 @@ function finalizeMetrics(
     metrics.streamStartedMs === null ? null : completedMs - metrics.streamStartedMs;
   return {
     requestId: context.requestId,
-    model: env.GEMINI_MODEL,
+    provider: "openrouter",
+    model: metrics.model,
     mode: context.mode,
-    reasoningEffort: env.GEMINI_REASONING_EFFORT,
+    reasoningEffort: env.OPENROUTER_REASONING_EFFORT,
     requestStartedAt: metrics.requestStartedAt,
     modelStartedAt: metrics.modelStartedAt,
     streamStartedAt: metrics.streamStartedAt,
@@ -474,6 +566,9 @@ function finalizeMetrics(
     reasoningChunks: metrics.reasoningChunks,
     outputChars: metrics.outputChars,
     reasoningChars: metrics.reasoningChars,
+    toolCalls: metrics.toolCalls,
+    toolFailures: metrics.toolFailures,
+    totalToolMs: roundMs(metrics.totalToolMs),
     maxChunkGapMs: roundMs(metrics.maxChunkGapMs),
     charsPerSecond:
       textStreamingMs && textStreamingMs > 0
@@ -509,7 +604,7 @@ function updateUsage(
     | undefined
 ) {
   if (!usage) return;
-  // ChatGoogle emits per-chunk usage deltas, so totals must be accumulated.
+  // Streaming adapters can emit usage once or as deltas; accumulating preserves totals.
   if (usage.input_tokens !== undefined) {
     metrics.inputTokens = (metrics.inputTokens ?? 0) + usage.input_tokens;
   }
@@ -526,50 +621,6 @@ function countInputChars(input: ChatInput) {
     (sum, message) => sum + message.content.length,
     0
   );
-}
-
-function readString(
-  value: Record<string, unknown> | undefined,
-  key: string
-): string | null {
-  const candidate = value?.[key];
-  return typeof candidate === "string" ? candidate : null;
-}
-
-function readReasoningSummary(
-  contentBlocks: ReadonlyArray<{ type: string; reasoning?: string }>
-) {
-  return contentBlocks
-    .filter(
-      (block): block is { type: "reasoning"; reasoning: string } =>
-        block.type === "reasoning" && typeof block.reasoning === "string"
-    )
-    .map((block) => block.reasoning)
-    .join("");
-}
-
-function readVisibleText(
-  contentBlocks: ReadonlyArray<{
-    type: string;
-    text?: string;
-    reasoning?: string;
-  }>,
-  fallbackText: string
-) {
-  const text = contentBlocks
-    .filter(
-      (block): block is { type: "text"; text: string } =>
-        block.type === "text" && typeof block.text === "string"
-    )
-    .map((block) => block.text)
-    .join("");
-
-  if (text) return text;
-  const isReasoningOnly = contentBlocks.some(
-    (block) =>
-      block.type === "reasoning" && typeof block.reasoning === "string"
-  );
-  return isReasoningOnly ? "" : fallbackText;
 }
 
 function isAbortError(error: unknown) {
